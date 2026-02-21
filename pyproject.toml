@@ -1,0 +1,28 @@
+[project]
+name = "buganise"
+version = "0.1.0"
+description = "Python client for the Chromium Issue Tracker"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "pandas>=3.0.1",
+    "rich>=14.3.3",
+]
+
+[project.scripts]
+buganise = "buganise.cli.main:start"
+buganize = "buganise.cli.main:start"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "black>=26.1.0"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["uv_build>=0.8.3,<0.9.0"]
+build-backend = "uv_build"
