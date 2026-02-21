@@ -1,6 +1,6 @@
 [project]
 name = "buganise"
-version = "0.2.0"
+version = "0.2.1"
 description = "Python client for the Chromium Issue Tracker"
 readme = "README.md"
 license = "MIT"

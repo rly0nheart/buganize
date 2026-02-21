@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/rly0nheart/buganise/refs/heads/master/img/buganise.png" width="200" height="200">
-  <br>
-  Python client for the Chromium Issue Tracker.
-</p>
+# Buganise
+
+Python client for the Chromium Issue Tracker.
 
 ## Table of Contents
 
@@ -29,12 +27,6 @@
 
 ```shell
 pip install buganise
-```
-
-or
-
-```shell
-pip install buganize
 ```
 
 ## Usage as a library
