@@ -5,4 +5,4 @@ from rich.console import Console
 __pkg__ = "buganise"
 __version__ = version(__pkg__)
 
-console = Console()
+console = Console(log_time=False)

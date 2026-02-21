@@ -1,12 +1,30 @@
 [project]
 name = "buganise"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python client for the Chromium Issue Tracker"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [
+    { name = "Ritchie Mwewa", email = "hi@rly0nheart.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Bug Tracking",
+    "Framework :: AsyncIO",
+]
 dependencies = [
     "httpx>=0.28.1",
     "pandas>=3.0.1",
     "rich>=14.3.3",
+    "update-checker>=0.18.0",
 ]
 
 [project.scripts]

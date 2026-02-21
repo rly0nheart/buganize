@@ -8,6 +8,10 @@ import typing as t
 from datetime import datetime
 
 from rich.logging import RichHandler
+from update_checker import UpdateChecker
+
+if t.TYPE_CHECKING:
+    from rich.status import Status
 
 from buganise.api.client import Buganise
 from buganise.api.models import Comment, Issue
@@ -98,6 +102,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def check_updates(status: Status):
+    """
+    Check for updates available
+
+    :param status: Rich status spinner for progress updates.
+    """
+
+    status.update("[dim]Checking for updates[yellow]…[/yellow][/dim]")
+    checker = UpdateChecker()
+    result = checker.check(package_name=__pkg__, package_version=__version__)
+    if result:
+        console.print(result)
+
+
 def _resolve_fields(args: argparse.Namespace) -> t.Union[list[str], None]:
     """
     Figure out which extra fields to display based on CLI args.
@@ -105,6 +123,7 @@ def _resolve_fields(args: argparse.Namespace) -> t.Union[list[str], None]:
     :param args: Parsed argparse namespace with .all and .show attributes.
     :return: List of field names to show, or None for defaults only.
     """
+
     if getattr(args, "all", False):
         return list(EXTRA_FIELDS.keys())
     if getattr(args, "fields", None):
@@ -122,6 +141,7 @@ def _print_issue_detail(issue: Issue, fields: t.Optional[list[str]] = None):
     :param issue: The issue to display.
     :param fields: Extra field names to include.
     """
+
     enabled_fields = set(fields or [])
     all_fields = bool(enabled_fields)
 
@@ -219,6 +239,7 @@ def _print_comments(comments: list[Comment]):
 
     :param comments: Comments to display (expected in chronological order).
     """
+
     if not comments:
         console.print("No comments.")
         return
@@ -245,6 +266,7 @@ def _add_fields_args(subparser: argparse.ArgumentParser):
 
     :param subparser: The argparse subparser to add the flags to.
     """
+
     subparser.add_argument(
         "-f",
         "--fields",
@@ -261,12 +283,13 @@ def _add_fields_args(subparser: argparse.ArgumentParser):
     )
 
 
-async def cmd_search(client: Buganise, args: argparse.Namespace):
+async def cmd_search(client: Buganise, args: argparse.Namespace, status: Status):
     """
     Handle the 'search' subcommand.
 
     :param client: Shared API client instance.
     :param args: Parsed arguments with ``.query``, ``.per_page``, and ``.limit``.
+    :param status: Rich status spinner for progress updates.
     """
 
     query = args.query
@@ -274,117 +297,117 @@ async def cmd_search(client: Buganise, args: argparse.Namespace):
     per_page = args.per_page
     limit = args.limit
 
-    with console.status(
-        status=f"[dim]Searching for {query}[yellow]…[/yellow][/dim]"
-    ) as status:
-        result = await client.search(query=query, page_size=per_page)
-        issues = list(result.issues)
+    status.update(f"[dim]Searching for {query}[yellow]…[/yellow][/dim]")
+    result = await client.search(query=query, page_size=per_page)
+    issues = list(result.issues)
 
-        if limit is not None:
-            while len(issues) < limit and result.has_more:
-                status.update(
-                    f"[dim]Search: collected {len(issues)}/{limit} results[yellow]…[/][/dim]"
-                )
-
-                result = await client.next_page(result)
-                issues.extend(result.issues)
-            issues = issues[:limit]
-
-        fields = _resolve_fields(args=args)
-        df = output.to_dataframe(items=issues, fields=fields)
-
-        if args.export:
-            output.export(df=df, formats=export_formats)
-        else:
-            console.print(
-                f"[bold green]✔[/bold green] Returned {len(issues)} of ~{result.total_count}+ results for '{query}'\n"
-            )
-            console.print(df)
-
-        if result.has_more:
-            console.print(
-                f"\n[yellow]…[/] ~{result.total_count - len(issues)}+ more results available"
+    if limit is not None:
+        while len(issues) < limit and result.has_more:
+            status.update(
+                f"[dim]Search: collected {len(issues)}/{limit} results[yellow]…[/][/dim]"
             )
 
+            result = await client.next_page(result)
+            issues.extend(result.issues)
+        issues = issues[:limit]
 
-async def cmd_issue(client: Buganise, args: argparse.Namespace):
+    fields = _resolve_fields(args=args)
+    df = output.to_dataframe(items=issues, fields=fields)
+
+    if args.export:
+        output.export(df=df, formats=export_formats)
+    else:
+        console.print(
+            f"[bold green]✔[/bold green] Returned {len(issues)} of ~{result.total_count}+ results for '{query}'\n"
+        )
+        console.print(df)
+
+    if result.has_more:
+        console.print(
+            f"\n[yellow]…[/] ~{result.total_count - len(issues)}+ more results available"
+        )
+
+
+async def cmd_issue(client: Buganise, args: argparse.Namespace, status: Status):
     """
     Handle the 'issue' subcommand.
 
     :param client: Shared API client instance.
     :param args: Parsed arguments with ``.issue_id``.
+    :param status: Rich status spinner for progress updates.
     """
 
     issue_id = args.issue_id
     export_formats = args.export
 
-    with console.status(status=f"[dim]Getting issue {issue_id}[yellow]…[/][/]"):
-        issue = await client.issue(issue_id=args.issue_id)
-        fields = _resolve_fields(args=args)
+    status.update(f"[dim]Getting issue {issue_id}[yellow]…[/][/]")
+    issue = await client.issue(issue_id=args.issue_id)
+    fields = _resolve_fields(args=args)
 
-        if args.export:
-            df = output.to_dataframe(items=[issue], fields=fields)
-            output.export(df=df, formats=export_formats)
-        else:
-            _print_issue_detail(issue=issue, fields=fields)
+    if args.export:
+        df = output.to_dataframe(items=[issue], fields=fields)
+        output.export(df=df, formats=export_formats)
+    else:
+        _print_issue_detail(issue=issue, fields=fields)
 
 
-async def cmd_issues(client: Buganise, args: argparse.Namespace):
+async def cmd_issues(client: Buganise, args: argparse.Namespace, status: Status):
     """
     Handle the 'issues' subcommand.
 
     :param client: Shared API client instance.
     :param args: Parsed arguments with ``.issue_ids``.
+    :param status: Rich status spinner for progress updates.
     """
 
     issue_ids = args.issue_ids
     export_formats = args.export
 
-    with console.status(status=f"Getting issues {issue_ids}[yellow]…[/]"):
-        issues = await client.issues(issue_ids=issue_ids)
-        fields = _resolve_fields(args=args)
-        df = output.to_dataframe(items=issues, fields=fields)
+    status.update(f"Getting issues {issue_ids}[yellow]…[/]")
+    issues = await client.issues(issue_ids=issue_ids)
+    fields = _resolve_fields(args=args)
+    df = output.to_dataframe(items=issues, fields=fields)
 
-        if args.export:
-            output.export(df=df, formats=export_formats)
-        else:
-            console.print(df)
+    if args.export:
+        output.export(df=df, formats=export_formats)
+    else:
+        console.print(df)
 
 
-async def cmd_comments(client: Buganise, args: argparse.Namespace):
+async def cmd_comments(client: Buganise, args: argparse.Namespace, status: Status):
     """
     Handle the 'comments' subcommand.
 
     :param client: Shared API client instance.
     :param args: Parsed arguments with ``.issue_id``.
+    :param status: Rich status spinner for progress updates.
     """
 
     issue_id = args.issue_id
     export_formats = args.export
 
-    with console.status(
-        status=f"[dim]Getting updates for issue {issue_id}[yellow]…[/][/]"
-    ):
-        result = await client.issue_updates(issue_id=issue_id)
-        comments = result.comments
+    status.update(status=f"[dim]Getting updates for issue {issue_id}[yellow]…[/][/]")
+    result = await client.issue_updates(issue_id=issue_id)
+    comments = result.comments
 
-        if args.export:
-            df = output.to_dataframe(items=comments)
-            output.export(df=df, formats=export_formats)
-        else:
-            console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
-            _print_comments(comments=comments)
+    if args.export:
+        df = output.to_dataframe(items=comments)
+        output.export(df=df, formats=export_formats)
+    else:
+        console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
+        _print_comments(comments=comments)
 
 
-async def dispatch_client(args: argparse.Namespace):
+async def dispatch_client(args: argparse.Namespace, status: Status):
     """
     Create a single client and dispatch to the chosen subcommand.
 
     :param args: Parsed arguments with ``.func`` set to the subcommand handler.
+    :param status: Rich status spinner for progress updates.
     """
 
     async with Buganise(timeout=args.timeout) as client:
-        await args.func(client=client, args=args)
+        await args.func(client=client, args=args, status=status)
 
 
 def start():
@@ -397,7 +420,9 @@ def start():
     )
 
     try:
-        asyncio.run(dispatch_client(args=args))
+        with console.status("Initialising") as status:
+            check_updates(status=status)
+            asyncio.run(dispatch_client(args=args, status=status))
     except KeyboardInterrupt:
         console.log(
             "[bold yellow]✘[/bold yellow] User interrupted ([bold yellow]CTRL+C[/bold yellow])"
