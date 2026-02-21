@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="img/buganise.png" width="200" height="200">
+  <img src="https://raw.githubusercontent.com/rly0nheart/buganise/refs/heads/master/img/buganise.png" width="200" height="200">
   <br>
-  Python client for the Chromium Issue Tracker using the JSON-array API at <a href="https://issues.chromium.org">issues.chromium.org</a>.
+  Python client for the Chromium Issue Tracker.
 </p>
 
 ## Table of Contents
