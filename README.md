@@ -29,17 +29,27 @@ Python client for the Chromium Issue Tracker.
 pip install buganize
 ```
 
-> [!Tip]
-> Running `pip install buganise` will also install the package
+or
+
+```shell
+pip install buganise
+```
 
 ## Usage as a library
+
+```python
+from buganize import Buganize
+```
+
+or
+
+```python
+from buganise import Buganise
+```
 
 ### Search issues
 
 ```python
-from buganize import Buganize
-
-
 async def search():
     async with Buganize() as client:
         result = await client.search("status:open component:Blink", page_size=10)
