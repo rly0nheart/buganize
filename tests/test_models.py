@@ -1,4 +1,4 @@
-from buganise.api.models import (
+from buganize.api.models import (
     Comment,
     FieldChange,
     Issue,

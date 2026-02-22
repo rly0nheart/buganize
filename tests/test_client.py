@@ -1,8 +1,8 @@
 import pytest
 import pytest_asyncio
 
-from buganise.api.client import Buganise
-from buganise.api.models import (
+from buganize.api.client import Buganize
+from buganize.api.models import (
     Comment,
     Issue,
     IssueUpdatesResult,
@@ -14,8 +14,8 @@ from buganise.api.models import (
 
 @pytest_asyncio.fixture
 async def client():
-    async with Buganise() as buganiser:
-        yield buganiser
+    async with Buganize() as buganizer:
+        yield buganizer
 
 
 class TestSearch:

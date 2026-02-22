@@ -61,8 +61,8 @@ wheels = [
 ]
 
 [[package]]
-name = "buganise"
-version = "0.1.1"
+name = "buganize"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

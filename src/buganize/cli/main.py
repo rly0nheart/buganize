@@ -12,11 +12,11 @@ from update_checker import UpdateChecker
 
 if t.TYPE_CHECKING:
     from rich.status import Status
+    from buganize.api.models import Comment, Issue
 
-from buganise.api.client import Buganise
-from buganise.api.models import Comment, Issue
-from buganise.cli import console, __pkg__, __version__, output
-from buganise.cli.output import EXTRA_FIELDS
+from buganize.api.client import Buganize
+from buganize.cli import console, __pkg__, __version__, output
+from buganize.cli.output import EXTRA_FIELDS
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         prog=__pkg__,
-        description="Buganise: Python client for the Chromium Issue Tracker",
+        description="Buganize: Python client for the Chromium Issue Tracker",
         epilog=f"© {datetime.now().year} Ritchie Mwewa",
     )
     parser.add_argument(
@@ -283,7 +283,7 @@ def _add_fields_args(subparser: argparse.ArgumentParser):
     )
 
 
-async def cmd_search(client: Buganise, args: argparse.Namespace, status: Status):
+async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status):
     """
     Handle the 'search' subcommand.
 
@@ -324,11 +324,11 @@ async def cmd_search(client: Buganise, args: argparse.Namespace, status: Status)
 
     if result.has_more:
         console.print(
-            f"\n[yellow]…[/] ~{result.total_count - len(issues)}+ more results available"
+            f"\n~{result.total_count - len(issues)}+ more results available"
         )
 
 
-async def cmd_issue(client: Buganise, args: argparse.Namespace, status: Status):
+async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     """
     Handle the 'issue' subcommand.
 
@@ -351,7 +351,7 @@ async def cmd_issue(client: Buganise, args: argparse.Namespace, status: Status):
         _print_issue_detail(issue=issue, fields=fields)
 
 
-async def cmd_issues(client: Buganise, args: argparse.Namespace, status: Status):
+async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
     """
     Handle the 'issues' subcommand.
 
@@ -374,7 +374,7 @@ async def cmd_issues(client: Buganise, args: argparse.Namespace, status: Status)
         console.print(df)
 
 
-async def cmd_comments(client: Buganise, args: argparse.Namespace, status: Status):
+async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
     """
     Handle the 'comments' subcommand.
 
@@ -406,7 +406,7 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     :param status: Rich status spinner for progress updates.
     """
 
-    async with Buganise(timeout=args.timeout) as client:
+    async with Buganize(timeout=args.timeout) as client:
         await args.func(client=client, args=args, status=status)
 
 

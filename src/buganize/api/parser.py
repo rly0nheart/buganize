@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import json
+import typing as t
 from datetime import datetime, timezone
-from typing import Any, Optional
 
-from buganise.api.models import (
-    CUSTOM_FIELD_IDS,
-    Comment,
-    FieldChange,
-    Issue,
-    IssueType,
-    IssueUpdate,
-    IssueUpdatesResult,
-    Priority,
-    SearchResult,
-    Status,
-)
+from buganize.api.models import CUSTOM_FIELD_IDS
+
+if t.TYPE_CHECKING:
+    from buganize.api.models import (
+        Comment,
+        FieldChange,
+        Issue,
+        IssueType,
+        IssueUpdate,
+        IssueUpdatesResult,
+        Priority,
+        SearchResult,
+        Status,
+    )
 
 
 def strip_response_prefix(raw_text: str) -> str:
@@ -24,22 +26,24 @@ def strip_response_prefix(raw_text: str) -> str:
     :param raw_text: Raw response body from the API.
     :return: The response body with the prefix stripped, ready for json.loads().
     """
+
     for prefix in (")]}'\n", ")]}'\\n", ")]}'\r\n"):
         if raw_text.startswith(prefix):
-            return raw_text[len(prefix) :]
+            return raw_text[len(prefix):]
     return raw_text
 
 
-def parse_json_response(raw_text: str) -> Any:
+def parse_json_response(raw_text: str) -> t.Any:
     """Strip the anti-XSSI prefix and parse the JSON body.
 
     :param raw_text: Raw response body from the API.
     :return: The parsed JSON (usually a nested list).
     """
+
     return json.loads(strip_response_prefix(raw_text))
 
 
-def _safe_get(array: Any, *indices: int, default=None) -> Any:
+def _safe_get(array: t.Any, *indices: int, default=None) -> t.Any:
     """Safely traverse nested arrays/lists by index.
 
     :param array: The root array to traverse.
@@ -47,6 +51,7 @@ def _safe_get(array: Any, *indices: int, default=None) -> Any:
     :param default: Value to return if any index is out of bounds.
     :return: The value at the given path, or default if not reachable.
     """
+
     current = array
     for index in indices:
         try:
@@ -56,16 +61,17 @@ def _safe_get(array: Any, *indices: int, default=None) -> Any:
     return current
 
 
-def _parse_timestamp(raw_timestamp: Any) -> Optional[datetime]:
+def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
     """Parse a [seconds, nanos] timestamp array into a UTC datetime.
 
     :param raw_timestamp: A list like [1657579144] or [1657579144, 285000000].
     :return: A timezone-aware UTC datetime, or None if unparseable.
     """
+
     if (
-        not raw_timestamp
-        or not isinstance(raw_timestamp, list)
-        or len(raw_timestamp) < 1
+            not raw_timestamp
+            or not isinstance(raw_timestamp, list)
+            or len(raw_timestamp) < 1
     ):
         return None
     try:
@@ -76,7 +82,7 @@ def _parse_timestamp(raw_timestamp: Any) -> Optional[datetime]:
         return None
 
 
-def _parse_email(user_array: Any) -> Optional[str]:
+def _parse_email(user_array: t.Any) -> t.Optional[str]:
     """Extract an email address from a user field array.
 
     User fields look like [null, "user@example.com", 1, [...]].
@@ -85,6 +91,7 @@ def _parse_email(user_array: Any) -> Optional[str]:
     :param user_array: A list representing a user, or None.
     :return: The email address, or None if not found.
     """
+
     if not user_array or not isinstance(user_array, list):
         return None
     for item in user_array:
@@ -93,12 +100,13 @@ def _parse_email(user_array: Any) -> Optional[str]:
     return None
 
 
-def _parse_ccs(raw_ccs: Any) -> list[str]:
+def _parse_ccs(raw_ccs: t.Any) -> list[str]:
     """Parse a CC list where each entry is a user array like [null, "email", type].
 
     :param raw_ccs: List of user arrays.
     :return: List of email addresses.
     """
+
     if not raw_ccs or not isinstance(raw_ccs, list):
         return []
     emails = []
@@ -109,18 +117,19 @@ def _parse_ccs(raw_ccs: Any) -> list[str]:
     return emails
 
 
-def _parse_int_list(raw_list: Any) -> list[int]:
+def _parse_int_list(raw_list: t.Any) -> list[int]:
     """Extract integers from a list, ignoring non-int values.
 
     :param raw_list: A list that should contain integers (e.g. hotlist IDs).
     :return: Only the integer values from the list.
     """
+
     if not raw_list or not isinstance(raw_list, list):
         return []
     return [item for item in raw_list if isinstance(item, int)]
 
 
-def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
+def _parse_custom_field_values(raw_field_entries: t.Any) -> dict[str, t.Any]:
     """Parse custom field value entries from the issue details array at [2][14].
 
     Each entry is an array like::
@@ -136,10 +145,11 @@ def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
         list[str] for multi-value fields, float for numeric fields,
         or str for single-value text fields.
     """
+
     if not raw_field_entries or not isinstance(raw_field_entries, list):
         return {}
 
-    parsed_fields: dict[str, Any] = {}
+    parsed_fields: dict[str, t.Any] = {}
     for entry in raw_field_entries:
         if not isinstance(entry, list) or len(entry) < 1:
             continue
@@ -226,6 +236,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     :param raw_entry: The 48-element array representing one issue.
     :return: A fully populated Issue dataclass.
     """
+
     issue_id = _safe_get(raw_entry, 1, default=0)
     details = _safe_get(raw_entry, 2, default=[]) or []
 
@@ -262,6 +273,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
 
     def pop_string_list(key: str) -> list[str]:
         """Pop a key from custom_fields and return it as a list of strings."""
+
         value = custom_fields.pop(key, None)
         if value is None:
             return []
@@ -271,8 +283,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
             return [part.strip() for part in value.split(",") if part.strip()]
         return []
 
-    def pop_string(key: str) -> Optional[str]:
+    def pop_string(key: str) -> t.Optional[str]:
         """Pop a key from custom_fields and return it as a single string."""
+
         value = custom_fields.pop(key, None)
         if value is None:
             return None
@@ -282,8 +295,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
             return ", ".join(str(v) for v in value)
         return str(value)
 
-    def pop_float(key: str) -> Optional[float]:
+    def pop_float(key: str) -> t.Optional[float]:
         """Pop a key from custom_fields and return it as a float."""
+
         value = custom_fields.pop(key, None)
         if value is None:
             return None
@@ -339,9 +353,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
 
 
 def parse_search_response(
-    raw_text: str,
-    query: str = "",
-    page_size: int = 50,
+        raw_text: str,
+        query: str = "",
+        page_size: int = 50,
 ) -> SearchResult:
     """Parse a search/list response.
 
@@ -357,6 +371,7 @@ def parse_search_response(
     :param page_size: The page size used (stored on the result for pagination).
     :return: Parsed issues with pagination info.
     """
+
     data = parse_json_response(raw_text)
 
     response_wrapper = _safe_get(data, 0, default=[])
@@ -393,6 +408,7 @@ def parse_issue_detail_response(raw_text: str) -> Issue:
     :return: The fully parsed issue.
     :raises ValueError: If the issue entry can't be located in the response.
     """
+
     data = parse_json_response(raw_text)
 
     response_wrapper = _safe_get(data, 0, default=[])
@@ -424,6 +440,7 @@ def parse_batch_response(raw_text: str) -> list[Issue]:
     :param raw_text: Raw response body from POST /action/issues/batch.
     :return: List of parsed issues.
     """
+
     data = parse_json_response(raw_text)
 
     response_wrapper = _safe_get(data, 0, default=[])
@@ -437,7 +454,7 @@ def parse_batch_response(raw_text: str) -> list[Issue]:
     ]
 
 
-def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
+def _parse_field_changes(raw_changes: t.Any) -> list[FieldChange]:
     """Parse field change entries from an update's changes array.
 
     Each change looks like ``["field_name", null, old_value_wrapper, new_value_wrapper]``.
@@ -446,6 +463,7 @@ def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     :param raw_changes: The field changes array from an update entry.
     :return: List of parsed field changes.
     """
+
     if not raw_changes or not isinstance(raw_changes, list):
         return []
     changes = []
@@ -457,7 +475,7 @@ def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     return changes
 
 
-def _parse_comment(raw_comment: Any, issue_id: int) -> Optional[Comment]:
+def _parse_comment(raw_comment: t.Any, issue_id: int) -> t.Optional[Comment]:
     """Parse a comment body array (18 elements) into a Comment.
 
     Comment array index map::
@@ -472,6 +490,7 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Optional[Comment]:
     :param issue_id: The issue ID this comment belongs to.
     :return: The parsed comment, or None if raw_comment is invalid.
     """
+
     if not raw_comment or not isinstance(raw_comment, list):
         return None
 
@@ -512,6 +531,7 @@ def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
     :param raw_text: Raw response body from POST /action/issues/{id}/updates.
     :return: Parsed updates with pagination info.
     """
+
     data = parse_json_response(raw_text)
 
     response_wrapper = _safe_get(data, 0, default=[])

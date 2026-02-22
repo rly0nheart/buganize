@@ -1,5 +1,5 @@
-from buganise.api.client import Buganise
-from buganise.api.models import (
+from buganize.api.client import Buganize
+from buganize.api.models import (
     CUSTOM_FIELD_IDS,
     Comment,
     CustomFieldValue,
@@ -12,11 +12,11 @@ from buganise.api.models import (
     SearchResult,
     Status,
 )
-from buganise.cli.output import EXTRA_FIELDS, export, to_dataframe
+from buganize.cli.output import EXTRA_FIELDS, export, to_dataframe
 
 __all__ = [
     "CUSTOM_FIELD_IDS",
-    "Buganise",
+    "Buganize",
     "Comment",
     "CustomFieldValue",
     "EXTRA_FIELDS",

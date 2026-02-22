@@ -1,4 +1,4 @@
-# Buganise
+# Buganize
 
 Python client for the Chromium Issue Tracker.
 
@@ -26,60 +26,71 @@ Python client for the Chromium Issue Tracker.
 ## Installation
 
 ```shell
-pip install buganise
+pip install buganize
 ```
+
+> [!Tip]
+> Running `pip install buganise` will also install the package
 
 ## Usage as a library
 
 ### Search issues
 
 ```python
-from buganise import Buganise
+from buganize import Buganize
 
-async with Buganise() as client:
-    result = await client.search("status:open component:Blink", page_size=10)
 
-print(f"{result.total_count} total matches")
-for issue in result.issues:
-    print(f"#{issue.id} [{issue.status.name}] {issue.title}")
+async def search():
+    async with Buganize() as client:
+        result = await client.search("status:open component:Blink", page_size=10)
 
-if result.has_more:
-    next_page = await client.next_page(result)
+        print(f"{result.total_count} total matches")
+        for issue in result.issues:
+            print(f"#{issue.id} [{issue.status.name}] {issue.title}")
+
+        # Pagination
+        if result.has_more:
+            page2 = await client.next_page(result)
+            for issue in page2.issues:
+                print(f"#{issue.id} [{issue.status.name}] {issue.title}")
 ```
 
 ### Get a single issue
 
 ```python
-async with Buganise() as client:
-    issue = await client.issue(40060244)
+async def get_issue():
+    async with Buganize() as client:
+        issue = await client.issue(40060244)
 
-print(issue.title)
-print(issue.url)  # https://issues.chromium.org/issues/40060244
-print(issue.status.name)  # e.g. "FIXED"
-print(issue.priority.name)  # e.g. "P2"
-print(issue.os)  # e.g. ["Linux", "Mac", "Windows"]
-print(issue.cve)  # e.g. ["CVE-2024-1234"]
+        print(issue.title)
+        print(issue.url)  # https://issues.chromium.org/issues/40060244
+        print(issue.status.name)  # e.g. "FIXED"
+        print(issue.priority.name)  # e.g. "P2"
+        print(issue.os)  # e.g. ["Linux", "Mac", "Windows"]
+        print(issue.cve)  # e.g. ["CVE-2024-1234"]
 ```
 
 ### Batch get issues
 
 ```python
-async with Buganise() as client:
-    issues = await client.issues([40060244, 485912774, 486077869])
+async def batch_get():
+    async with Buganize() as client:
+        issues = await client.issues([40060244, 485912774, 486077869])
 
-for issue in issues:
-    print(f"#{issue.id} - {issue.title}")
+        for issue in issues:
+            print(f"#{issue.id} - {issue.title}")
 ```
 
 ### Get comments
 
 ```python
-async with Buganise() as client:
-    comments = await client.comments(486077869)
+async def get_comments():
+    async with Buganize() as client:
+        comments = await client.comments(486077869)
 
-for comment in comments:
-    print(f"#{comment.comment_number} by {comment.author}")
-    print(comment.body)
+        for comment in comments:
+            print(f"#{comment.comment_number} by {comment.author}")
+            print(comment.body)
 ```
 
 ### Get full updates
@@ -87,60 +98,61 @@ for comment in comments:
 Updates include both comments and field changes (status changes, priority changes, etc.):
 
 ```python
-async with Buganise() as client:
-    result = await client.issue_updates(486077869)
+async def get_updates():
+    async with Buganize() as client:
+        result = await client.issue_updates(486077869)
 
-print(f"{result.total_count} total updates")
+        print(f"{result.total_count} total updates")
 
-# Just the comments, in chronological order
-for comment in result.comments:
-    print(f"#{comment.comment_number}: {comment.body[:80]}")
+        # Just the comments, in chronological order
+        for comment in result.comments:
+            print(f"#{comment.comment_number}: {comment.body[:80]}")
 
-# All updates (newest first), including field changes
-for update in result.updates:
-    if update.field_changes:
-        changed = ", ".join(fc.field for fc in update.field_changes)
-        print(f"  Fields changed: {changed}")
-    if update.comment:
-        print(f"  Comment: {update.comment.body[:80]}")
+        # All updates (newest first), including field changes
+        for update in result.updates:
+            if update.field_changes:
+                changed = ", ".join(fc.field for fc in update.field_changes)
+                print(f"  Fields changed: {changed}")
+            if update.comment:
+                print(f"  Comment: {update.comment.body[:80]}")
 ```
 
 ## CLI usage
 
-Run with `python -m buganise <command>` or just `buganise <command>`.
+Run with `python -m buganize <command>` or just `buganize <command>`.
 
 ### Search
 
 ```bash
 # Search for open issues
-buganise search "status:open"
+buganize search "status:open"
 
 # Combined filters
-buganise search "status:open component:Blink"
+buganize search "status:open component:Blink"
 
 # Results per page (choices: 25, 50, 100, 250)
-buganise search "type:bug" -n 100
+buganize search "type:bug" -n 100
 
 # Fetch a total of 200 results, paginating as needed
-buganise search "status:open" -l 200
+buganize search "status:open" -l 200
 ```
 
 ### Issue
 
 ```bash
-buganise issue 486077869
+buganize issue 486077869
 ```
 
 ### Issues (batch)
 
 ```bash
-buganise issues 40060244 485912774 486077869
+buganize issues 40060244 485912774 486077869
 ```
 
 ### Comments
 
 ```bash
-buganise comments 486077869
+buganize comments 486077869
 ```
 
 ### Extra fields
@@ -149,14 +161,14 @@ By default, the table output only shows ID, Status, Priority, and Title. You can
 
 ```bash
 # Show specific extra fields
-buganise search "status:open" -f owner os milestone
+buganize search "status:open" -f owner os milestone
 
 # Show all available fields
-buganise search "status:open" -F
+buganize search "status:open" -F
 
 # Works with issue and issues too
-buganise issue 486077869 --fields cve tags labels
-buganise issue 486077869 --all-fields
+buganize issue 486077869 --fields cve tags labels
+buganize issue 486077869 --all-fields
 ```
 
 Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component`, `tags`, `ancestor_tags`, `labels`,
@@ -169,12 +181,12 @@ Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component
 All commands support `-e/--export` for exporting to CSV, JSON, or HTML. You can specify multiple formats at once:
 
 ```bash
-buganise -e csv search "status:open" -n 50
-buganise -e json issue 486077869
-buganise -e html comments 486077869
+buganize -e csv search "status:open" -n 50
+buganize -e json issue 486077869
+buganize -e html comments 486077869
 
 # Multiple formats in one command
-buganise -e csv json search "status:open"
+buganize -e csv json search "status:open"
 ```
 
 ### Debug logging
@@ -182,7 +194,7 @@ buganise -e csv json search "status:open"
 Use `-d/--debug` to see HTTP request/response details:
 
 ```bash
-buganise --debug search "status:open"
+buganize --debug search "status:open"
 ```
 
 ### Timeout
@@ -190,11 +202,11 @@ buganise --debug search "status:open"
 Use `-t/--timeout` to set the HTTP request timeout in seconds (default: 30):
 
 ```bash
-buganise -t 60 search "status:open"
+buganize -t 60 search "status:open"
 ```
 
 > [!Tip]
-> American English spelling `buganize`, will also work.
+> British English spelling `buganise` will also work.
 
 ## How it works
 

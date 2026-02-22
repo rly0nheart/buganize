@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 import enum
+import typing as t
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+
+__all__ = ["CUSTOM_FIELD_IDS",
+           "Comment",
+           "CustomFieldValue",
+           "FieldChange",
+           "Issue",
+           "IssueType",
+           "IssueUpdate",
+           "IssueUpdatesResult",
+           "Priority",
+           "SearchResult",
+           "Status"]
 
 
 class Status(enum.IntEnum):
@@ -124,7 +136,7 @@ class CustomFieldValue:
     field_id: int
     name: str
     values: list[str] = field(default_factory=list)
-    numeric_value: Optional[float] = None
+    numeric_value: t.Optional[float] = None
 
 
 @dataclass
@@ -182,19 +194,19 @@ class Issue:
     title: str
     status: Status = Status.NEW
     priority: Priority = Priority.P2
-    issue_type: Optional[IssueType] = None
-    reporter: Optional[str] = None
-    owner: Optional[str] = None
-    verifier: Optional[str] = None
-    component_id: Optional[int] = None
+    issue_type: t.Optional[IssueType] = None
+    reporter: t.Optional[str] = None
+    owner: t.Optional[str] = None
+    verifier: t.Optional[str] = None
+    component_id: t.Optional[int] = None
     ccs: list[str] = field(default_factory=list)
-    created_at: Optional[datetime] = None
-    modified_at: Optional[datetime] = None
-    verified_at: Optional[datetime] = None
+    created_at: t.Optional[datetime] = None
+    modified_at: t.Optional[datetime] = None
+    verified_at: t.Optional[datetime] = None
     comment_count: int = 0
     star_count: int = 0
-    tracker_id: Optional[int] = None
-    last_modifier: Optional[str] = None
+    tracker_id: t.Optional[int] = None
+    last_modifier: t.Optional[str] = None
     hotlist_ids: list[int] = field(default_factory=list)
     blocking_issue_ids: list[int] = field(default_factory=list)
     component_tags: list[str] = field(default_factory=list)
@@ -206,18 +218,18 @@ class Issue:
     merge_request: list[str] = field(default_factory=list)
     release_block: list[str] = field(default_factory=list)
     cve: list[str] = field(default_factory=list)
-    cwe_id: Optional[float] = None
-    vrp_reward: Optional[float] = None
-    estimated_days: Optional[float] = None
-    build_number: Optional[str] = None
-    flaky_test: Optional[str] = None
-    next_action: Optional[str] = None
-    notice: Optional[str] = None
-    introduced_in: Optional[str] = None
-    irm_link: Optional[str] = None
+    cwe_id: t.Optional[float] = None
+    vrp_reward: t.Optional[float] = None
+    estimated_days: t.Optional[float] = None
+    build_number: t.Optional[str] = None
+    flaky_test: t.Optional[str] = None
+    next_action: t.Optional[str] = None
+    notice: t.Optional[str] = None
+    introduced_in: t.Optional[str] = None
+    irm_link: t.Optional[str] = None
     security_release: list[str] = field(default_factory=list)
     fixed_by_code_changes: list[str] = field(default_factory=list)
-    custom_fields: dict[str, Any] = field(default_factory=dict)
+    custom_fields: dict[str, t.Any] = field(default_factory=dict)
 
     @property
     def url(self) -> str:
@@ -239,8 +251,8 @@ class Comment:
 
     issue_id: int
     comment_number: int
-    author: Optional[str] = None
-    timestamp: Optional[datetime] = None
+    author: t.Optional[str] = None
+    timestamp: t.Optional[datetime] = None
     body: str = ""
 
 
@@ -255,8 +267,8 @@ class FieldChange:
     """
 
     field: str
-    old_value: Optional[str] = None
-    new_value: Optional[str] = None
+    old_value: t.Optional[str] = None
+    new_value: t.Optional[str] = None
 
 
 @dataclass
@@ -273,10 +285,10 @@ class IssueUpdate:
     """
 
     issue_id: int
-    sequence_number: Optional[int] = None
-    author: Optional[str] = None
-    timestamp: Optional[datetime] = None
-    comment: Optional[Comment] = None
+    sequence_number: t.Optional[int] = None
+    author: t.Optional[str] = None
+    timestamp: t.Optional[datetime] = None
+    comment: t.Optional[Comment] = None
     field_changes: list[FieldChange] = field(default_factory=list)
 
 
@@ -295,7 +307,7 @@ class IssueUpdatesResult:
 
     updates: list[IssueUpdate]
     total_count: int
-    next_page_token: Optional[str] = None
+    next_page_token: t.Optional[str] = None
 
     @property
     def comments(self) -> list[Comment]:
@@ -322,7 +334,7 @@ class SearchResult:
 
     issues: list[Issue]
     total_count: int
-    next_page_token: Optional[str] = None
+    next_page_token: t.Optional[str] = None
     query: str = ""
     page_size: int = 50
 

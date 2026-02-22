@@ -3,8 +3,8 @@ from datetime import timezone
 
 import pytest
 
-from buganise.api.models import IssueType, Priority, Status
-from buganise.api.parser import (
+from buganize.api.models import IssueType, Priority, Status
+from buganize.api.parser import (
     _parse_comment,
     _parse_ccs,
     _parse_custom_field_values,

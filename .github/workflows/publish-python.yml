@@ -104,7 +104,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/buganise
+      url: https://pypi.org/p/buganize
 
     steps:
       - name: Retrieve release distributions

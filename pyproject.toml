@@ -1,5 +1,5 @@
 [project]
-name = "buganise"
+name = "buganize"
 version = "0.2.1"
 description = "Python client for the Chromium Issue Tracker"
 readme = "README.md"
@@ -28,8 +28,7 @@ dependencies = [
 ]
 
 [project.scripts]
-buganise = "buganise.cli.main:start"
-buganize = "buganise.cli.main:start"
+buganize = "buganize.cli.main:start"
 
 [dependency-groups]
 dev = [

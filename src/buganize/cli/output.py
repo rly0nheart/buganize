@@ -4,8 +4,10 @@ import typing as t
 
 import pandas as pd
 
-from buganise.api.models import Comment, Issue
-from buganise.cli import console
+from buganize.cli import console
+
+if t.TYPE_CHECKING:
+    from buganize.api.models import Comment, Issue
 
 pd.options.display.max_colwidth = None
 
@@ -26,7 +28,7 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
     "ccs": lambda issue: ", ".join(issue.ccs) or None,
     "hotlists": lambda issue: ", ".join(str(h) for h in issue.hotlist_ids) or None,
     "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
-    or None,
+                              or None,
     "cve": lambda issue: ", ".join(issue.cve) or None,
     "cwe": lambda issue: str(int(issue.cwe_id)) if issue.cwe_id is not None else None,
     "build": lambda issue: issue.build_number,
@@ -60,8 +62,8 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
 
 
 def to_dataframe(
-    items: t.Union[list[Issue], list[Comment]],
-    fields: t.Optional[list[str]] = None,
+        items: t.Union[list[Issue], list[Comment]],
+        fields: t.Optional[list[str]] = None,
 ) -> pd.DataFrame:
     """
     Convert a list of issues or comments into a pandas DataFrame.
@@ -112,8 +114,8 @@ def _column_header(key: str) -> str:
 
 
 def _issues_to_rows(
-    issues: list[Issue],
-    fields: t.Optional[list[str]] = None,
+        issues: list[Issue],
+        fields: t.Optional[list[str]] = None,
 ) -> pd.DataFrame:
     """
     Build a DataFrame from a list of issues.
