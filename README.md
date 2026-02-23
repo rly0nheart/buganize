@@ -4,14 +4,14 @@ Python client for the Google Issue Tracker.
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Usage as a library](#usage-as-a-library)
+1. [Installation](#installation)
+2. [Usage as a library](#usage-as-a-library)
     - [Search issues](#search-issues)
     - [Get a single issue](#get-a-single-issue)
     - [Batch get issues](#batch-get-issues)
     - [Get comments](#get-comments)
     - [Get full updates](#get-full-updates)
-- [CLI usage](#cli-usage)
+3. [CLI usage](#cli-usage)
     - [Search](#search)
     - [Tracker selection](#tracker-selection)
     - [Issue](#issue)
@@ -21,8 +21,8 @@ Python client for the Google Issue Tracker.
     - [Export](#export)
     - [Debug logging](#debug-logging)
     - [Timeout](#timeout)
-- [How it works](#how-it-works)
-- [Limitations](#limitations)
+4. [How it works](#how-it-works)
+5. [Limitations](#limitations)
 
 ## Installation
 
@@ -158,17 +158,18 @@ buganize search "status:open" -l 200
 
 ### Tracker selection
 
-By default, buganize searches across all public trackers on issuetracker.google.com. Use `-T/--tracker` to narrow to a specific tracker:
+By default, buganize searches across all public trackers on issuetracker.google.com. Use `-t/--tracker` to narrow to a
+specific tracker:
 
 ```bash
 # Search only Chromium issues
-buganize -T chromium search "status:open"
+buganize -t chromium search "status:open"
 
 # Search only Fuchsia issues
-buganize -T fuchsia search "status:open"
+buganize -t fuchsia search "status:open"
 
 # Use a numeric tracker ID directly
-buganize -T 157 search "status:open"
+buganize -t 157 search "status:open"
 ```
 
 ### Issue
@@ -212,7 +213,8 @@ Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component
 
 ### Export
 
-All commands support `-e/--export` for exporting to CSV or JSON files. Exported files are named with a timestamp (e.g. `buganize-20260223_012345.csv`):
+All commands support `-e/--export` for exporting to CSV or JSON files. Exported files are named with a timestamp (e.g.
+`buganize-20260223_012345.csv`):
 
 ```bash
 buganize -e csv search "status:open" -n 50
@@ -224,7 +226,7 @@ buganize -e csv json search "status:open"
 
 ### Debug logging
 
-Use `-d/--debug` to see HTTP request/response details:
+Use `--debug` to see HTTP request/response details:
 
 ```bash
 buganize --debug search "status:open"
@@ -232,36 +234,15 @@ buganize --debug search "status:open"
 
 ### Timeout
 
-Use `-t/--timeout` to set the HTTP request timeout in seconds (default: 30):
+Use `--timeout` to set the HTTP request timeout in seconds (default: 30):
 
 ```bash
-buganize -t 60 search "status:open"
+buganize --timeout 60 search "status:open"
 ```
 
 > [!Tip]
 > British English spelling `buganise` will also work.
 
-## How it works
 
-The Google Issue Tracker at `issuetracker.google.com` doesn't have a documented public API. But the web frontend talks to
-a set of POST endpoints under `https://issuetracker.google.com/action/` using JSON arrays as request/response bodies. This
-library speaks that same protocol. The same backend powers `issues.chromium.org` and other Google project trackers.
-
-Every response from the API starts with `)]}'\n` (an anti-XSSI prefix) followed by a JSON array. Issue data comes back
-as 48-element positional arrays, no keys, just indexes. The parser maps those indexes to fields on the `Issue`
-dataclass. Custom fields (things like OS, milestone, CVE, component tags) are embedded inside the issue array at a
-specific offset and have their own internal structure.
-
-No cookies or tokens are needed for reading public issues. The only headers required are `Content-Type`, `Origin`,
-`Referer`, and a browser-like `User-Agent`.
-
-## Limitations
-
-- This uses an undocumented API. It could break if Google changes the response format.
-- Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
-- The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
-  return wrong data.
-- Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
-  field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
-- Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
-- The batch endpoint may not return issues in the same order as the input IDs.
+See [API Reference](https://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme) for details about
+limitations, and how the API works

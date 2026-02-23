@@ -43,15 +43,29 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
 
 ## Overview
 
-`issuetracker.google.com` and `issues.chromium.org` share the **exact same
-Buganizer backend** — identical endpoints, response format, and `b.`-prefixed
-type strings. The only difference: `issues.chromium.org` hard-codes
-tracker 157 (Chromium), while `issuetracker.google.com` can query
-**all public trackers** when no tracker ID is specified.
+The Google Issue Tracker at `issuetracker.google.com` has no documented public API. The web frontend talks to a set of
+POST endpoints under `https://issuetracker.google.com/action/` using JSON arrays as request/response bodies. This
+library speaks that same protocol. The same backend powers `issues.chromium.org` (hard-coded to tracker 157) and other
+Google project trackers.
 
-The API uses **positional JSON arrays** rather than keyed objects. Every
-response is a deeply nested list of lists. Fields are identified by their
-**index position**, not by name.
+Every response starts with `)]}'\n` (an anti-XSSI prefix) followed by a JSON array. Issue data comes back as
+48-element positional arrays, no keys, just indexes. The parser maps those indexes to fields on the `Issue` dataclass.
+Custom fields (OS, milestone, CVE, component tags, etc.) are embedded inside the issue array at a specific offset and
+have their own internal structure.
+
+No cookies or tokens are needed for reading public issues. The only required headers are `Content-Type`, `Origin`,
+`Referer`, and a browser-like `User-Agent`.
+
+## Limitations
+
+- This is as undocumented API. It could break if Google changes the response format.
+- Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
+- The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
+  return wrong data.
+- Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
+  field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
+- Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
+- The batch endpoint may not return issues in the same order as the input IDs.
 
 ---
 
