@@ -662,7 +662,7 @@ Component details are available via `GET /action/components/{id}`:
 
 ## Limitations
 
-- This is as undocumented API. It could break if Googlehttps://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme changes the response format.
+- This is an undocumented API. It could break if Googlehttps://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme changes the response format.
 - Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
 - The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
   return wrong data.
