@@ -2,7 +2,7 @@
 
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
-browser traffic with mitmproxy. There is no official documentation.
+browser traffic with BurpSuite and mitmproxy. There is no official documentation.
 
 ---
 
