@@ -38,6 +38,7 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
 15. [Pagination](#pagination)
 16. [Component Hierarchy](#component-hierarchy)
 17. [Debugging Tips](#debugging-tips)
+18. [Limitations](#limitations)
 
 ---
 
@@ -55,17 +56,6 @@ have their own internal structure.
 
 No cookies or tokens are needed for reading public issues. The only required headers are `Content-Type`, `Origin`,
 `Referer`, and a browser-like `User-Agent`.
-
-## Limitations
-
-- This is as undocumented API. It could break if Google changes the response format.
-- Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
-- The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
-  return wrong data.
-- Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
-  field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
-- Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
-- The batch endpoint may not return issues in the same order as the input IDs.
 
 ---
 
@@ -667,3 +657,17 @@ Component details are available via `GET /action/components/{id}`:
 10. **Updates come newest-first.** Reverse the list if you need chronological
     order. The `IssueUpdatesResult.comments` property does this
     automatically.
+
+---
+
+## Limitations
+
+- This is an undocumented API. It could break if Google changes the response format.
+- Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
+- The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
+  return wrong data.
+- Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
+  field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
+- Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
+- The batch endpoint may not return issues in the same order as the input IDs.
+
