@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import csv
+import json
 import typing as t
+from datetime import datetime
 
-import pandas as pd
+from rich import box
+from rich.table import Table as RichTable
 
-from buganize.cli import console
-
-if t.TYPE_CHECKING:
-    from buganize.api.models import Comment, Issue
-
-pd.options.display.max_colwidth = None
+from ..api.models import Comment, Issue
+from ..cli import console
 
 # Extra fields available via --fields/--all-fields. Each key is both the CLI
 # field name and the column header (title-cased with underscores as spaces).
@@ -22,7 +22,7 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
     "component": lambda issue: str(issue.component_id) if issue.component_id else None,
     "tags": lambda issue: ", ".join(issue.component_tags) or None,
     "ancestor_tags": lambda issue: ", ".join(issue.component_ancestor_tags) or None,
-    "labels": lambda issue: ", ".join(issue.chromium_labels) or None,
+    "labels": lambda issue: ", ".join(issue.labels) or None,
     "os": lambda issue: ", ".join(issue.os) or None,
     "milestone": lambda issue: ", ".join(issue.milestone) or None,
     "ccs": lambda issue: ", ".join(issue.ccs) or None,
@@ -58,48 +58,93 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
     "comments": lambda issue: str(issue.comment_count),
     "stars": lambda issue: str(issue.star_count),
     "last_modifier": lambda issue: issue.last_modifier,
+    "7d_views": lambda issue: str(issue.views_7d) if issue.views_7d else None,
 }
 
 
-def to_dataframe(
-        items: t.Union[list[Issue], list[Comment]],
-        fields: t.Optional[list[str]] = None,
-) -> pd.DataFrame:
+class Save:
     """
-    Convert a list of issues or comments into a pandas DataFrame.
+    Handles exporting row data to CSV and JSON files.
 
-    For issues, the default columns are ID, Status, Priority, Title.
-    Extra columns are added based on *fields*.
-    For comments, columns are #, Author, Date, Body.
-
-    :param items: The issues or comments to convert.
-    :param fields: Extra field names to include (issues only).
-    :return: A DataFrame with one row per item.
+    :param rows: List of dicts representing table rows.
     """
 
-    if not items:
-        return pd.DataFrame()
+    def __init__(self, rows: list[dict[str, t.Any]]):
+        self.rows = rows
 
-    if isinstance(items[0], Issue):
-        return _issues_to_rows(issues=items, fields=fields)  # type: ignore[arg-type]
-    return _comments_to_rows(comments=items)  # type: ignore[arg-type]
+    def save(self, formats: list[str]):
+        """
+        Write rows to timestamped files in the specified formats.
+
+        :param formats: List of format strings, each one of ``"csv"`` or ``"json"``.
+        """
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        for fmt in formats:
+            path = f"buganize-{timestamp}.{fmt}"
+            if fmt == "csv":
+                self.to_csv(self.rows, path)
+            elif fmt == "json":
+                self.to_json(self.rows, path)
+
+    @staticmethod
+    def to_csv(rows: list[dict[str, t.Any]], path: str):
+        """
+        Write rows as CSV to a file.
+
+        :param rows: List of dicts to export.
+        :param path: Output file path.
+        """
+
+        if not rows:
+            return
+        with open(path, "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+        console.print(f"[bold green]✔[/bold green] CSV exported to {path}")
+
+    @staticmethod
+    def to_json(rows: list[dict[str, t.Any]], path: str):
+        """
+        Write rows as JSON to a file.
+
+        :param rows: List of dicts to export.
+        :param path: Output file path.
+        """
+
+        with open(path, "w") as file:
+            json.dump(rows, file, indent=4, default=str)
+        console.print(f"[bold green]✔[/bold green] JSON exported to {path}")
 
 
-def export(df: pd.DataFrame, formats: list[str]):
+class Format:
     """
-    Export a DataFrame in one or more formats to stdout.
+    Converts issues or comments into serialisable row dicts for export.
 
-    :param df: The DataFrame to export.
-    :param formats: List of format strings, each one of ``"csv"``, ``"json"``, or ``"html"``.
+    Delegates to :class:`Convert` for the actual conversion logic.
+
+    :param items: List of :class:`Issue` or :class:`Comment` objects.
     """
 
-    for fmt in formats:
-        if fmt == "csv":
-            console.print(df.to_csv(), end="")
-        elif fmt == "json":
-            console.print(df.to_json(orient="records", indent=4))
-        elif fmt == "html":
-            console.print(df.to_html())
+    def __init__(self, items: t.Union[list[Issue], list[Comment]]):
+        self.items = items
+
+    def to_rows(
+            self,
+            fields: t.Optional[list[str]] = None,
+    ) -> list[dict[str, t.Any]]:
+        """
+        Convert the items into a list of row dicts.
+
+        :param fields: Extra field names to include (issues only).
+        :return: List of dicts with one entry per item.
+        """
+
+        if not self.items:
+            return []
+
+        return Convert(items=self.items, fields=fields).to_dict()
 
 
 def _column_header(key: str) -> str:
@@ -113,60 +158,198 @@ def _column_header(key: str) -> str:
     return key.replace("_", " ").title()
 
 
-def _issues_to_rows(
-        issues: list[Issue],
-        fields: t.Optional[list[str]] = None,
-) -> pd.DataFrame:
+class Table:
     """
-    Build a DataFrame from a list of issues.
+    Renders issues or comments as Rich tables to the console.
 
-    Default columns are ID, Status, Priority, and Title. Additional
-    columns are appended for each name in *fields* that exists in
-    :data:`EXTRA_FIELDS`.
-
-    :param issues: The issues to convert.
-    :param fields: Extra field names to include as columns.
-    :return: A DataFrame with one row per issue.
+    :param items: List of :class:`Issue` or :class:`Comment` objects.
     """
 
-    rows = []
-    for issue in issues:
-        row: dict[str, t.Any] = {
-            "ID": issue.id,
-            "Status": issue.status.name.lower(),
-            "Priority": issue.priority.name,
-            "Title": issue.title,
-        }
-        for field_name in fields or []:
-            if field_name in EXTRA_FIELDS:
-                getter = EXTRA_FIELDS[field_name]
-                row[_column_header(field_name)] = getter(issue) or ""
-        rows.append(row)
-    return pd.DataFrame(rows)
+    def __init__(self, items: t.Union[list[Issue], list[Comment]]):
+        self.items = items
 
+    @staticmethod
+    def make_table(
+            columns: list[tuple[str, dict[str, t.Any]]],
+    ) -> Table:
+        """
+        Create a Rich table with the given columns and keyword arguments.
 
-def _comments_to_rows(comments: list[Comment]) -> pd.DataFrame:
-    """
-    Build a DataFrame from a list of comments.
+        :param columns: List of ``(header, column_kwargs)`` tuples.
+        :return: A configured Rich table ready for rows.
+        """
 
-    Columns are #, Author, Date, and Body.
+        table = RichTable(box=box.MINIMAL, highlight=True, expand=True)
 
-    :param comments: The comments to convert.
-    :return: A DataFrame with one row per comment.
-    """
+        for header, col_kwargs in columns:
+            table.add_column(header, **col_kwargs)
 
-    rows = []
-    for comment in comments:
-        rows.append(
-            {
-                "#": comment.comment_number,
-                "Author": comment.author or "unknown",
-                "Date": (
+        return table
+
+    def print(self, fields: t.Optional[list[str]] = None):
+        """
+        Print items as a Rich table, dispatching to :meth:`issues` or
+        :meth:`comments` based on item type.
+
+        :param fields: Extra field names to include as columns (issues only).
+        """
+
+        if not self.items:
+            return
+
+        if all(isinstance(item, Issue) for item in self.items):
+            self.issues(fields=fields)
+        elif all(isinstance(item, Comment) for item in self.items):
+            self.comments()
+
+    def issues(self, fields: t.Optional[list[str]] = None):
+        """
+        Print issues as a Rich table.
+
+        :param fields: Extra field names to include as columns.
+        """
+
+        extra = fields or []
+        extra_columns = [(_column_header(f), {}) for f in extra if f in EXTRA_FIELDS]
+        table = self.make_table(
+            columns=[
+                ("#", {"justify": "right"}),
+                ("P", {}),
+                ("ID", {"justify": "right"}),
+                ("Type", {}),
+                ("Title", {"overflow": "fold"}),
+                ("Status", {}),
+                ("Modified", {"justify": "right"}),
+                *extra_columns,
+            ],
+        )
+
+        for index, issue in enumerate(self.items, start=1):
+            row = [
+                str(index),
+                issue.priority.name,
+                str(issue.id),
+                issue.issue_type.name,  # if issue.issue_type else "",
+                issue.title,
+                issue.status.name.lower(),
+                issue.modified_at.strftime("%x %X"),  # if issue.modified_at else "",
+            ]
+            for field_name in extra:
+                if field_name in EXTRA_FIELDS:
+                    getter = EXTRA_FIELDS[field_name]
+                    row.append(str(getter(issue) or ""))
+            table.add_row(*row)
+
+        console.print(table)
+
+    def comments(self):
+        """
+        Print comments as a Rich table.
+        """
+
+        table = self.make_table(
+            columns=[
+                ("#", {"style": "cyan", "no_wrap": True}),
+                ("Author", {"style": "bold"}),
+                ("Date", {"no_wrap": True}),
+                ("Body", {}),
+            ],
+        )
+
+        for comment in self.items:
+            table.add_row(
+                str(comment.comment_number),
+                comment.author or "unknown",
+                (
                     comment.timestamp.strftime("%Y-%m-%d %H:%M UTC")
                     if comment.timestamp
                     else ""
                 ),
-                "Body": comment.body,
+                comment.body,
+            )
+
+        console.print(table)
+
+
+class Convert:
+    """
+    Converts issues or comments into plain dicts.
+
+    :param items: List of :class:`Issue` or :class:`Comment` objects.
+    :param fields: Extra field names to include (issues only).
+    """
+
+    def __init__(
+            self,
+            items: t.Union[list[Issue], list[Comment]],
+            fields: t.Optional[list[str]] = None,
+    ):
+        self.items = items
+        self.fields = fields
+
+    def to_dict(self) -> list[dict[str, t.Any]]:
+        """
+        Convert items to a list of dicts, dispatching to :meth:`issues` or
+        :meth:`comments` based on item type.
+
+        :return: List of dicts with one entry per item, or empty list if
+            the item type is unrecognised.
+        """
+
+        if not self.items:
+            return []
+
+        if all(isinstance(item, Issue) for item in self.items):
+            return self.issues(fields=self.fields)
+        elif all(isinstance(item, Comment) for item in self.items):
+            return self.comments()
+
+        return []
+
+    def issues(self, fields: t.Optional[list[str]] = None) -> list[dict[str, t.Any]]:
+        """
+        Build a list of row dicts from issues.
+
+        :param fields: Extra field names to include.
+        :return: List of dicts with one entry per issue.
+        """
+
+        rows = []
+        for issue in self.items:
+            row: dict[str, t.Any] = {
+                "P": issue.priority.name,
+                "ID": issue.id,
+                "Type": issue.issue_type.name if issue.issue_type else "",
+                "Title": issue.title,
+                "Status": issue.status.name.lower(),
+                "Last Modified": (
+                    issue.modified_at.isoformat() if issue.modified_at else ""
+                ),
             }
-        )
-    return pd.DataFrame(rows)
+            for field_name in fields or []:
+                if field_name in EXTRA_FIELDS:
+                    getter = EXTRA_FIELDS[field_name]
+                    row[_column_header(field_name)] = getter(issue) or ""
+            rows.append(row)
+        return rows
+
+    def comments(self) -> list[dict[str, t.Any]]:
+        """
+        Build a list of row dicts from comments.
+
+        :return: List of dicts with one entry per comment.
+        """
+
+        rows = []
+        for comment in self.items:
+            rows.append(
+                {
+                    "#": comment.comment_number,
+                    "Author": comment.author or "unknown",
+                    "Date": (
+                        comment.timestamp.strftime("%x %X") if comment.timestamp else ""
+                    ),
+                    "Body": comment.body,
+                }
+            )
+        return rows

@@ -1,7 +1,7 @@
 [project]
 name = "buganize"
-version = "0.2.3"
-description = "Python client for the Chromium Issue Tracker"
+version = "1.0.0"
+description = "Python client for the Google Issue Tracker"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -22,7 +22,6 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.28.1",
-    "pandas>=3.0.1",
     "rich>=14.3.3",
     "update-checker>=0.18.0",
 ]

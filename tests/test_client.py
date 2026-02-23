@@ -76,7 +76,7 @@ class TestGetIssue:
         assert isinstance(issue.priority, Priority)
         assert issue.created_at is not None
         assert issue.modified_at is not None
-        assert issue.url == f"https://issues.chromium.org/issues/{issue.id}"
+        assert issue.url == f"https://issuetracker.google.com/issues/{issue.id}"
 
     async def test_issue_has_reporter(self, client):
         search = await client.search("status:open", page_size=1)

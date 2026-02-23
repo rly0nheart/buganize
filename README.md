@@ -1,6 +1,6 @@
 # Buganize
 
-Python client for the Chromium Issue Tracker.
+Python client for the Google Issue Tracker.
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@ Python client for the Chromium Issue Tracker.
     - [Get full updates](#get-full-updates)
 - [CLI usage](#cli-usage)
     - [Search](#search)
+    - [Tracker selection](#tracker-selection)
     - [Issue](#issue)
     - [Issues (batch)](#issues-batch)
     - [Comments](#comments)
@@ -51,6 +52,7 @@ from buganise import Buganise
 
 ```python
 async def search():
+    # Search across all public trackers (default)
     async with Buganize() as client:
         result = await client.search("status:open component:Blink", page_size=10)
 
@@ -65,6 +67,13 @@ async def search():
                 print(f"#{issue.id} [{issue.status.name}] {issue.title}")
 ```
 
+```python
+async def search_chromium():
+    # Search only within the Chromium tracker
+    async with Buganize(tracker_id="157") as client:
+        result = await client.search("status:open component:Blink")
+```
+
 ### Get a single issue
 
 ```python
@@ -73,7 +82,7 @@ async def get_issue():
         issue = await client.issue(40060244)
 
         print(issue.title)
-        print(issue.url)  # https://issues.chromium.org/issues/40060244
+        print(issue.url)  # https://issuetracker.google.com/issues/40060244
         print(issue.status.name)  # e.g. "FIXED"
         print(issue.priority.name)  # e.g. "P2"
         print(issue.os)  # e.g. ["Linux", "Mac", "Windows"]
@@ -134,7 +143,7 @@ Run with `python -m buganize <command>` or just `buganize <command>`.
 ### Search
 
 ```bash
-# Search for open issues
+# Search across all public trackers (default)
 buganize search "status:open"
 
 # Combined filters
@@ -145,6 +154,21 @@ buganize search "type:bug" -n 100
 
 # Fetch a total of 200 results, paginating as needed
 buganize search "status:open" -l 200
+```
+
+### Tracker selection
+
+By default, buganize searches across all public trackers on issuetracker.google.com. Use `-T/--tracker` to narrow to a specific tracker:
+
+```bash
+# Search only Chromium issues
+buganize -T chromium search "status:open"
+
+# Search only Fuchsia issues
+buganize -T fuchsia search "status:open"
+
+# Use a numeric tracker ID directly
+buganize -T 157 search "status:open"
 ```
 
 ### Issue
@@ -188,12 +212,11 @@ Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component
 
 ### Export
 
-All commands support `-e/--export` for exporting to CSV, JSON, or HTML. You can specify multiple formats at once:
+All commands support `-e/--export` for exporting to CSV or JSON files. Exported files are named with a timestamp (e.g. `buganize-20260223_012345.csv`):
 
 ```bash
 buganize -e csv search "status:open" -n 50
 buganize -e json issue 486077869
-buganize -e html comments 486077869
 
 # Multiple formats in one command
 buganize -e csv json search "status:open"
@@ -220,9 +243,9 @@ buganize -t 60 search "status:open"
 
 ## How it works
 
-The Chromium issue tracker at `issues.chromium.org` doesn't have a documented public API. But the web frontend talks to
-a set of POST endpoints under `https://issues.chromium.org/action/` using JSON arrays as request/response bodies. This
-library speaks that same protocol.
+The Google Issue Tracker at `issuetracker.google.com` doesn't have a documented public API. But the web frontend talks to
+a set of POST endpoints under `https://issuetracker.google.com/action/` using JSON arrays as request/response bodies. This
+library speaks that same protocol. The same backend powers `issues.chromium.org` and other Google project trackers.
 
 Every response from the API starts with `)]}'\n` (an anti-XSSI prefix) followed by a JSON array. Issue data comes back
 as 48-element positional arrays, no keys, just indexes. The parser maps those indexes to fields on the `Issue`
@@ -238,5 +261,7 @@ No cookies or tokens are needed for reading public issues. The only headers requ
 - Only works with public issues. Private/restricted issues need authentication cookies that this client doesn't handle.
 - The parser is entirely index-based. If the API adds or removes fields from the arrays, the parsing will silently
   return wrong data.
+- Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
+  field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
 - Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
 - The batch endpoint may not return issues in the same order as the input IDs.

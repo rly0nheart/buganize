@@ -12,11 +12,11 @@ from update_checker import UpdateChecker
 
 if t.TYPE_CHECKING:
     from rich.status import Status
-    from buganize.api.models import Comment, Issue
+    from ..api.models import Comment, Issue
 
-from buganize.api.client import Buganize
-from buganize.cli import console, __pkg__, __version__, output
-from buganize.cli.output import EXTRA_FIELDS
+from ..api.client import Buganize, TRACKER_NAMES
+from ..cli import console, __pkg__, __version__, output
+from ..cli.output import EXTRA_FIELDS
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,25 +28,32 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         prog=__pkg__,
-        description="Buganize: Python client for the Chromium Issue Tracker",
+        description="Buganize: Python client for the Google Issue Tracker",
         epilog=f"© {datetime.now().year} Ritchie Mwewa",
+    )
+    parser.add_argument(
+        "-t",
+        "--tracker",
+        default=None,
+        metavar="TRACKER",
+        help=f"tracker name ({', '.join(TRACKER_NAMES)}) or numeric ID (default: all trackers)",
     )
     parser.add_argument(
         "-e",
         "--export",
         nargs="+",
-        choices=["csv", "json", "html"],
+        choices=["csv", "json"],
         metavar="FORMAT",
         help="export formats: %(choices)s (one or more)",
     )
     parser.add_argument(
-        "-d",
+
         "--debug",
         action="store_true",
         help="enable debug logging",
     )
     parser.add_argument(
-        "-t",
+
         "--timeout",
         type=int,
         default=30,
@@ -175,8 +182,8 @@ def _print_issue_detail(issue: Issue, fields: t.Optional[list[str]] = None):
         console.print(f"  Comp. Tags:    {', '.join(issue.component_tags)}")
     if is_shown("ancestor_tags") and issue.component_ancestor_tags:
         console.print(f"  Ancestor Tags: {', '.join(issue.component_ancestor_tags)}")
-    if is_shown("labels") and issue.chromium_labels:
-        console.print(f"  Labels:        {', '.join(issue.chromium_labels)}")
+    if is_shown("labels") and issue.labels:
+        console.print(f"  Labels:        {', '.join(issue.labels)}")
     if is_shown("os") and issue.os:
         console.print(f"  OS:            {', '.join(issue.os)}")
     if is_shown("milestone") and issue.milestone:
@@ -296,15 +303,19 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     export_formats = args.export
     per_page = args.per_page
     limit = args.limit
+    tracker = args.tracker.title() if args.tracker else "Google"
 
-    status.update(f"[dim]Searching for {query}[yellow]…[/yellow][/dim]")
+    status.update(
+        f"[dim]Searching for [bold green]{query}[/bold green] on "
+        f"[bold]{tracker} Issue Tracker[/bold][yellow]…[/yellow][/dim]"
+    )
     result = await client.search(query=query, page_size=per_page)
     issues = list(result.issues)
 
     if limit is not None:
         while len(issues) < limit and result.has_more:
             status.update(
-                f"[dim]Search: collected {len(issues)}/{limit} results[yellow]…[/][/dim]"
+                f"[dim][bold]{tracker}[/bold]: collected [cyan]{len(issues)}[/]/[cyan]{limit}[/] results[yellow]…[/][/dim]"
             )
 
             result = await client.next_page(result)
@@ -312,20 +323,22 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
         issues = issues[:limit]
 
     fields = _resolve_fields(args=args)
-    df = output.to_dataframe(items=issues, fields=fields)
+
+    console.print(
+        f"[bold green]✔[/bold green] Returned {len(issues)} of ~{result.total_count}+ results for '{query}'\n"
+    )
+
+    output_print = output.Table(items=issues)
+    output_print.print(fields=fields)
 
     if args.export:
-        output.export(df=df, formats=export_formats)
-    else:
-        console.print(
-            f"[bold green]✔[/bold green] Returned {len(issues)} of ~{result.total_count}+ results for '{query}'\n"
-        )
-        console.print(df)
+        output_format = output.Format(items=issues)
+        rows = output_format.to_rows(fields=fields)
+        output_save = output.Save(rows=rows)
+        output_save.save(formats=export_formats)
 
     if result.has_more:
-        console.print(
-            f"\n~{result.total_count - len(issues)}+ more results available"
-        )
+        console.print(f"\n~{result.total_count - len(issues)}+ more results available")
 
 
 async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
@@ -344,11 +357,13 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     issue = await client.issue(issue_id=args.issue_id)
     fields = _resolve_fields(args=args)
 
+    _print_issue_detail(issue=issue, fields=fields)
+
     if args.export:
-        df = output.to_dataframe(items=[issue], fields=fields)
-        output.export(df=df, formats=export_formats)
-    else:
-        _print_issue_detail(issue=issue, fields=fields)
+        output_format = output.Format(items=[issue])
+        rows = output_format.to_rows(fields=fields)
+        output_save = output.Save(rows=rows)
+        output_save.save(formats=export_formats)
 
 
 async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
@@ -363,15 +378,18 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     issue_ids = args.issue_ids
     export_formats = args.export
 
-    status.update(f"Getting issues {issue_ids}[yellow]…[/]")
+    status.update(f"[dim]Getting issues {issue_ids}[yellow]…[/][/]")
     issues = await client.issues(issue_ids=issue_ids)
     fields = _resolve_fields(args=args)
-    df = output.to_dataframe(items=issues, fields=fields)
+
+    output_print = output.Table(items=issues)
+    output_print.print(fields=fields)
 
     if args.export:
-        output.export(df=df, formats=export_formats)
-    else:
-        console.print(df)
+        output_format = output.Format(items=issues)
+        rows = output_format.to_rows(fields=fields)
+        output_save = output.Save(rows=rows)
+        output_save.save(formats=export_formats)
 
 
 async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
@@ -386,16 +404,17 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     issue_id = args.issue_id
     export_formats = args.export
 
-    status.update(status=f"[dim]Getting updates for issue {issue_id}[yellow]…[/][/]")
-    result = await client.issue_updates(issue_id=issue_id)
-    comments = result.comments
+    status.update(status=f"[dim]Getting comments for issue {issue_id}[yellow]…[/][/]")
+    comments = await client.comments(issue_id=issue_id)
+
+    console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
+    _print_comments(comments=comments)
 
     if args.export:
-        df = output.to_dataframe(items=comments)
-        output.export(df=df, formats=export_formats)
-    else:
-        console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
-        _print_comments(comments=comments)
+        output_format = output.Format(items=comments)
+        rows = output_format.to_rows()
+        output_save = output.Save(rows=rows)
+        output_save.save(formats=export_formats)
 
 
 async def dispatch_client(args: argparse.Namespace, status: Status):
@@ -406,12 +425,17 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     :param status: Rich status spinner for progress updates.
     """
 
-    async with Buganize(timeout=args.timeout) as client:
+    tracker_id = None
+    if args.tracker:
+        tracker_id = TRACKER_NAMES.get(args.tracker.lower(), args.tracker)
+    async with Buganize(tracker_id=tracker_id, timeout=args.timeout) as client:
         await args.func(client=client, args=args, status=status)
 
 
 def start():
-    """CLI entry point. Parse arguments, configure logging, and run the subcommand."""
+    """
+    CLI entry point. Parse arguments, configure logging, and run the subcommand.
+    """
 
     args = parse_args()
     logging.basicConfig(

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-02-23
+
+### Changed
+
+- Rebrand from "Chromium Issue Tracker" to "Google Issue Tracker" — the client now queries all public trackers by
+  default
+- Drop `pandas` dependency, all output uses Rich tables and stdlib `csv`/`json` for export
+- Drop HTML export format, `--export` now accepts `csv` and `json` only
+
+### Added
+
+- `-t`/`--tracker` flag to scope queries to a specific tracker by name (`chromium`, `fuchsia`) or numeric ID.
+  Without it, queries search across all public trackers on the Google Issue Tracker
+- `API.md` — reverse-engineered documentation of the issuetracker.google.com API
+
 ## [0.2.3] - 2026-02-22
 
 ### Changed

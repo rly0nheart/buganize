@@ -4,24 +4,23 @@ import json
 import typing as t
 from datetime import datetime, timezone
 
-from buganize.api.models import CUSTOM_FIELD_IDS
-
-if t.TYPE_CHECKING:
-    from buganize.api.models import (
-        Comment,
-        FieldChange,
-        Issue,
-        IssueType,
-        IssueUpdate,
-        IssueUpdatesResult,
-        Priority,
-        SearchResult,
-        Status,
-    )
+from ..api.models import (
+    CUSTOM_FIELD_IDS,
+    Comment,
+    FieldChange,
+    Issue,
+    IssueType,
+    IssueUpdate,
+    IssueUpdatesResult,
+    Priority,
+    SearchResult,
+    Status,
+)
 
 
 def strip_response_prefix(raw_text: str) -> str:
-    """Remove the )]}' anti-XSSI prefix that the API prepends to all JSON responses.
+    """
+    Remove the )]}' anti-XSSI prefix that the API prepends to all JSON responses.
 
     :param raw_text: Raw response body from the API.
     :return: The response body with the prefix stripped, ready for json.loads().
@@ -34,7 +33,8 @@ def strip_response_prefix(raw_text: str) -> str:
 
 
 def parse_json_response(raw_text: str) -> t.Any:
-    """Strip the anti-XSSI prefix and parse the JSON body.
+    """
+    Strip the anti-XSSI prefix and parse the JSON body.
 
     :param raw_text: Raw response body from the API.
     :return: The parsed JSON (usually a nested list).
@@ -44,7 +44,8 @@ def parse_json_response(raw_text: str) -> t.Any:
 
 
 def _safe_get(array: t.Any, *indices: int, default=None) -> t.Any:
-    """Safely traverse nested arrays/lists by index.
+    """
+    Safely traverse nested arrays/lists by index.
 
     :param array: The root array to traverse.
     :param indices: One or more integer indices to follow.
@@ -62,7 +63,8 @@ def _safe_get(array: t.Any, *indices: int, default=None) -> t.Any:
 
 
 def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
-    """Parse a [seconds, nanos] timestamp array into a UTC datetime.
+    """
+    Parse a [seconds, nanos] timestamp array into a UTC datetime.
 
     :param raw_timestamp: A list like [1657579144] or [1657579144, 285000000].
     :return: A timezone-aware UTC datetime, or None if unparseable.
@@ -83,7 +85,8 @@ def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
 
 
 def _parse_email(user_array: t.Any) -> t.Optional[str]:
-    """Extract an email address from a user field array.
+    """
+    Extract an email address from a user field array.
 
     User fields look like [null, "user@example.com", 1, [...]].
     We find the first string that looks like an email.
@@ -101,7 +104,8 @@ def _parse_email(user_array: t.Any) -> t.Optional[str]:
 
 
 def _parse_ccs(raw_ccs: t.Any) -> list[str]:
-    """Parse a CC list where each entry is a user array like [null, "email", type].
+    """
+    Parse a CC list where each entry is a user array like [null, "email", type].
 
     :param raw_ccs: List of user arrays.
     :return: List of email addresses.
@@ -118,7 +122,8 @@ def _parse_ccs(raw_ccs: t.Any) -> list[str]:
 
 
 def _parse_int_list(raw_list: t.Any) -> list[int]:
-    """Extract integers from a list, ignoring non-int values.
+    """
+    Extract integers from a list, ignoring non-int values.
 
     :param raw_list: A list that should contain integers (e.g. hotlist IDs).
     :return: Only the integer values from the list.
@@ -130,7 +135,8 @@ def _parse_int_list(raw_list: t.Any) -> list[int]:
 
 
 def _parse_custom_field_values(raw_field_entries: t.Any) -> dict[str, t.Any]:
-    """Parse custom field value entries from the issue details array at [2][14].
+    """
+    Parse custom field value entries from the issue details array at [2][14].
 
     Each entry is an array like::
 
@@ -199,7 +205,8 @@ def _parse_custom_field_values(raw_field_entries: t.Any) -> dict[str, t.Any]:
 
 
 def parse_issue_from_entry(raw_entry: list) -> Issue:
-    """Parse a single issue from the 48-element array format used across all endpoints.
+    """
+    Parse a single issue from the 48-element array format used across all endpoints.
 
     This is the api parser. Every endpoint (search, get, batch) ultimately
     produces these 48-element arrays, just nested at different paths.
@@ -272,7 +279,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     custom_fields = _parse_custom_field_values(custom_field_entries)
 
     def pop_string_list(key: str) -> list[str]:
-        """Pop a key from custom_fields and return it as a list of strings."""
+        """
+        Pop a key from custom_fields and return it as a list of strings.
+        """
 
         value = custom_fields.pop(key, None)
         if value is None:
@@ -284,7 +293,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         return []
 
     def pop_string(key: str) -> t.Optional[str]:
-        """Pop a key from custom_fields and return it as a single string."""
+        """
+        Pop a key from custom_fields and return it as a single string.
+        """
 
         value = custom_fields.pop(key, None)
         if value is None:
@@ -296,7 +307,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         return str(value)
 
     def pop_float(key: str) -> t.Optional[float]:
-        """Pop a key from custom_fields and return it as a float."""
+        """
+        Pop a key from custom_fields and return it as a float.
+        """
 
         value = custom_fields.pop(key, None)
         if value is None:
@@ -330,7 +343,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         blocking_issue_ids=_parse_int_list(blocking_ids_array),
         component_tags=pop_string_list("component_tags"),
         component_ancestor_tags=pop_string_list("component_ancestor_tags"),
-        chromium_labels=pop_string_list("chromium_labels"),
+        labels=pop_string_list("chromium_labels"),
         os=pop_string_list("os"),
         milestone=pop_string_list("milestone"),
         merge=pop_string_list("merge"),
@@ -357,7 +370,8 @@ def parse_search_response(
         query: str = "",
         page_size: int = 50,
 ) -> SearchResult:
-    """Parse a search/list response.
+    """
+    Parse a search/list response.
 
     Response shape::
 
@@ -395,7 +409,8 @@ def parse_search_response(
 
 
 def parse_issue_detail_response(raw_text: str) -> Issue:
-    """Parse a getIssue response.
+    """
+    Parse a getIssue response.
 
     Response shape::
 
@@ -429,7 +444,8 @@ def parse_issue_detail_response(raw_text: str) -> Issue:
 
 
 def parse_batch_response(raw_text: str) -> list[Issue]:
-    """Parse a batch get response.
+    """
+    Parse a batch get response.
 
     Response shape::
 
@@ -455,7 +471,8 @@ def parse_batch_response(raw_text: str) -> list[Issue]:
 
 
 def _parse_field_changes(raw_changes: t.Any) -> list[FieldChange]:
-    """Parse field change entries from an update's changes array.
+    """
+    Parse field change entries from an update's changes array.
 
     Each change looks like ``["field_name", null, old_value_wrapper, new_value_wrapper]``.
     We currently only extract the field name.
@@ -476,7 +493,8 @@ def _parse_field_changes(raw_changes: t.Any) -> list[FieldChange]:
 
 
 def _parse_comment(raw_comment: t.Any, issue_id: int) -> t.Optional[Comment]:
-    """Parse a comment body array (18 elements) into a Comment.
+    """
+    Parse a comment body array (18 elements) into a Comment.
 
     Comment array index map::
 
@@ -509,7 +527,8 @@ def _parse_comment(raw_comment: t.Any, issue_id: int) -> t.Optional[Comment]:
 
 
 def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
-    """Parse a ListIssueUpdatesResponse (comments + field changes).
+    """
+    Parse a ListIssueUpdatesResponse (comments + field changes).
 
     Response shape::
 

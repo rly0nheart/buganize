@@ -59,7 +59,7 @@ class TestIssueType:
 class TestIssue:
     def test_url_property(self):
         issue = Issue(id=12345, title="test")
-        assert issue.url == "https://issues.chromium.org/issues/12345"
+        assert issue.url == "https://issuetracker.google.com/issues/12345"
 
     def test_defaults(self):
         issue = Issue(id=1, title="t")

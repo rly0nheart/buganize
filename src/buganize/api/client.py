@@ -16,9 +16,13 @@ if t.TYPE_CHECKING:
     from httpx import Response
     from .models import Comment, Issue, IssueUpdatesResult, SearchResult
 
-__all__ = ["Buganize"]
+__all__ = ["Buganize", "TRACKER_NAMES"]
 
-DEFAULT_TRACKER_ID = "157"  # Chromium
+DEFAULT_TRACKER_ID = None  # None = search all public trackers
+TRACKER_NAMES: dict[str, str] = {
+    "chromium": "157",
+    "fuchsia": "183",
+}
 USER_AGENTS = [
     "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -57,9 +61,9 @@ USER_AGENTS = [
 
 class Buganize:
     """
-    Async Python client for the Chromium Issue Tracker.
+    Async Python client for the Google Issue Tracker.
 
-    Wraps the non-public JSON-array API at issues.chromium.org. Supports
+    Wraps the non-public JSON-array API at issuetracker.google.com. Supports
     searching issues, fetching individual issues, batch fetching, and
     reading comments/updates.
 
@@ -68,22 +72,22 @@ class Buganize:
         async with Buganize() as client:
             result = await client.search("priority:p1")
 
-    :param tracker_id: Tracker ID to query. Defaults to "157" (Chromium).
+    :param tracker_id: Tracker ID to query. Defaults to None (all trackers).
     :param timeout: HTTP request timeout in seconds. Defaults to 30.
     """
 
     def __init__(
             self,
-            tracker_id: str = DEFAULT_TRACKER_ID,
+            tracker_id: t.Optional[str] = DEFAULT_TRACKER_ID,
             timeout: float = 30.0,
     ):
-        self.base_endpoint = "https://issues.chromium.org/action"
+        self.base_endpoint = "https://issuetracker.google.com/action"
         self.tracker_id = tracker_id
         self._http = httpx.AsyncClient(
             headers={
                 "Content-Type": "application/json",
-                "Origin": "https://issues.chromium.org",
-                "Referer": "https://issues.chromium.org/",
+                "Origin": "https://issuetracker.google.com",
+                "Referer": "https://issuetracker.google.com/",
                 "User-Agent": random.choice(USER_AGENTS),
             },
             timeout=timeout,
@@ -105,7 +109,7 @@ class Buganize:
             page_token: t.Optional[str] = None,
     ) -> SearchResult:
         """
-        Search for issues in the Chromium tracker.
+        Search for issues in the Google Issue Tracker.
 
         :param query: Search query string (e.g. "status:open", "component:Blink").
         :param page_size: Number of results per page (25, 50, 100, or 250).
@@ -120,7 +124,16 @@ class Buganize:
             if page_token
             else [query, None, page_size]
         )
-        request_body: list = [None, None, None, None, None, [self.tracker_id], query_payload]
+        tracker_filter = [self.tracker_id] if self.tracker_id else None
+        request_body: list = [
+            None,
+            None,
+            None,
+            None,
+            None,
+            tracker_filter,
+            query_payload,
+        ]
         url: str = f"{self.base_endpoint}/issues/list"
 
         response: Response = await self._http.post(url, json=request_body)
@@ -152,9 +165,10 @@ class Buganize:
         """
 
         request_body: list = [issue_id, 1, 1]
-        url: str = (
-            f"{self.base_endpoint}/issues/{issue_id}/getIssue?currentTrackerId={self.tracker_id}"
+        tracker_param = (
+            f"?currentTrackerId={self.tracker_id}" if self.tracker_id else ""
         )
+        url: str = f"{self.base_endpoint}/issues/{issue_id}/getIssue{tracker_param}"
 
         response: Response = await self._http.post(url, json=request_body)
         response.raise_for_status()
@@ -186,7 +200,10 @@ class Buganize:
         :return: Updates, total count, and pagination token.
         """
 
-        url: str = f"{self.base_endpoint}/issues/{issue_id}/updates?currentTrackerId={self.tracker_id}"
+        tracker_param = (
+            f"?currentTrackerId={self.tracker_id}" if self.tracker_id else ""
+        )
+        url: str = f"{self.base_endpoint}/issues/{issue_id}/updates{tracker_param}"
 
         response: Response = await self._http.post(url, json=[issue_id])
         response.raise_for_status()

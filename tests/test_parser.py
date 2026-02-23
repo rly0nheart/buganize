@@ -352,7 +352,7 @@ class TestParseIssueFromEntry:
     def test_url_property(self):
         entry = _make_issue_entry(issue_id=12345)
         issue = parse_issue_from_entry(entry)
-        assert issue.url == "https://issues.chromium.org/issues/12345"
+        assert issue.url == "https://issuetracker.google.com/issues/12345"
 
     def test_unknown_custom_fields_go_to_custom_fields_dict(self):
         unknown_field = [

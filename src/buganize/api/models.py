@@ -5,21 +5,24 @@ import typing as t
 from dataclasses import dataclass, field
 from datetime import datetime
 
-__all__ = ["CUSTOM_FIELD_IDS",
-           "Comment",
-           "CustomFieldValue",
-           "FieldChange",
-           "Issue",
-           "IssueType",
-           "IssueUpdate",
-           "IssueUpdatesResult",
-           "Priority",
-           "SearchResult",
-           "Status"]
+__all__ = [
+    "CUSTOM_FIELD_IDS",
+    "Comment",
+    "CustomFieldValue",
+    "FieldChange",
+    "Issue",
+    "IssueType",
+    "IssueUpdate",
+    "IssueUpdatesResult",
+    "Priority",
+    "SearchResult",
+    "Status",
+]
 
 
 class Status(enum.IntEnum):
-    """Issue status values used by the Chromium tracker.
+    """
+    Issue status values used by the Google Issue Tracker.
 
     The first three (NEW, ASSIGNED, ACCEPTED) are considered open.
     Everything else is a closed/resolved state. Unknown values from
@@ -46,12 +49,15 @@ class Status(enum.IntEnum):
 
     @property
     def is_open(self) -> bool:
-        """Whether this status represents an open (unresolved) issue."""
+        """
+        Whether this status represents an open (unresolved) issue.
+        """
         return self in (Status.NEW, Status.ASSIGNED, Status.ACCEPTED)
 
 
 class Priority(enum.IntEnum):
-    """Issue priority levels. P0 is the most urgent, P4 is the lowest.
+    """
+    Issue priority levels. P0 is the most urgent, P4 is the lowest.
 
     Unknown values from the API get an auto-generated PN name.
     """
@@ -71,7 +77,8 @@ class Priority(enum.IntEnum):
 
 
 class IssueType(enum.IntEnum):
-    """Issue type categories.
+    """
+    Issue type categories.
 
     Unknown values from the API get an auto-generated TYPE_N name.
     """
@@ -93,6 +100,7 @@ class IssueType(enum.IntEnum):
 
 # Maps numeric custom field IDs to human-readable names.
 # These are the 24 well-known fields in the Chromium tracker (tracker 157).
+# Other trackers may use different field IDs; unrecognized fields go to custom_fields.
 # The parser uses this to turn raw field IDs into named attributes.
 CUSTOM_FIELD_IDS: dict[int, str] = {
     1225362: "backlog_rank",
@@ -124,7 +132,8 @@ CUSTOM_FIELD_IDS: dict[int, str] = {
 
 @dataclass
 class CustomFieldValue:
-    """A single custom field value that didn't map to a known attribute.
+    """
+    A single custom field value that didn't map to a known attribute.
 
     Attributes:
         field_id: Numeric ID of the custom field.
@@ -141,7 +150,8 @@ class CustomFieldValue:
 
 @dataclass
 class Issue:
-    """A single Chromium issue with all available fields.
+    """
+    A single issue from the Google Issue Tracker.
 
     Basic fields (id, title, status, priority, etc.) are always populated.
     Custom fields (os, milestone, cve, etc.) come from the tracker's
@@ -163,13 +173,13 @@ class Issue:
         verified_at: When the fix was verified (UTC).
         comment_count: Total number of comments.
         star_count: Number of stars (watchers/votes).
-        tracker_id: Tracker ID (157 for Chromium).
+        tracker_id: Tracker ID (e.g. 157 for Chromium, 183 for Fuchsia).
         last_modifier: Email of the last person to modify the issue.
         hotlist_ids: IDs of hotlists this issue belongs to.
         blocking_issue_ids: IDs of issues this one blocks or is related to.
         component_tags: Component tags (e.g. ["Blink>JavaScript"]).
         component_ancestor_tags: Full component ancestry.
-        chromium_labels: Chromium-specific labels.
+        labels: Tracker-specific labels.
         os: Affected operating systems (e.g. ["Linux", "Mac", "Windows"]).
         milestone: Affected milestones.
         merge: Merge status labels.
@@ -211,7 +221,7 @@ class Issue:
     blocking_issue_ids: list[int] = field(default_factory=list)
     component_tags: list[str] = field(default_factory=list)
     component_ancestor_tags: list[str] = field(default_factory=list)
-    chromium_labels: list[str] = field(default_factory=list)
+    labels: list[str] = field(default_factory=list)
     os: list[str] = field(default_factory=list)
     milestone: list[str] = field(default_factory=list)
     merge: list[str] = field(default_factory=list)
@@ -233,13 +243,16 @@ class Issue:
 
     @property
     def url(self) -> str:
-        """Direct link to this issue on issues.chromium.org."""
-        return f"https://issues.chromium.org/issues/{self.id}"
+        """
+        Direct link to this issue on issuetracker.google.com.
+        """
+        return f"https://issuetracker.google.com/issues/{self.id}"
 
 
 @dataclass
 class Comment:
-    """A single comment on an issue.
+    """
+    A single comment on an issue.
 
     Attributes:
         issue_id: The issue this comment belongs to.
@@ -258,7 +271,8 @@ class Comment:
 
 @dataclass
 class FieldChange:
-    """A single field change within an issue update.
+    """
+    A single field change within an issue update.
 
     Attributes:
         field: Name of the changed field (e.g. "status", "priority").
@@ -273,7 +287,8 @@ class FieldChange:
 
 @dataclass
 class IssueUpdate:
-    """An issue update entry. May contain a comment, field changes, or both.
+    """
+    An issue update entry. May contain a comment, field changes, or both.
 
     Attributes:
         issue_id: The issue this update belongs to.
@@ -294,7 +309,8 @@ class IssueUpdate:
 
 @dataclass
 class IssueUpdatesResult:
-    """Result from fetching issue updates (comments + field changes).
+    """
+    Result from fetching issue updates (comments + field changes).
 
     The API returns updates in reverse chronological order (newest first).
     Use the .comments property to get just the comments in chronological order.
@@ -311,18 +327,23 @@ class IssueUpdatesResult:
 
     @property
     def comments(self) -> list[Comment]:
-        """Only the updates that have comments, in chronological order (oldest first)."""
+        """
+        Only the updates that have comments, in chronological order (oldest first).
+        """
         return [u.comment for u in reversed(self.updates) if u.comment is not None]
 
     @property
     def has_more(self) -> bool:
-        """Whether there are more updates beyond this page."""
+        """
+        Whether there are more updates beyond this page.
+        """
         return self.next_page_token is not None
 
 
 @dataclass
 class SearchResult:
-    """Result from searching/listing issues.
+    """
+    Result from searching/listing issues.
 
     Attributes:
         issues: The matching issues for this page.
@@ -340,5 +361,7 @@ class SearchResult:
 
     @property
     def has_more(self) -> bool:
-        """Whether there are more results beyond this page."""
+        """
+        Whether there are more results beyond this page.
+        """
         return self.next_page_token is not None
