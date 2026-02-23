@@ -21,8 +21,6 @@ Python client for the Google Issue Tracker.
     - [Export](#export)
     - [Debug logging](#debug-logging)
     - [Timeout](#timeout)
-4. [How it works](#how-it-works)
-5. [Limitations](#limitations)
 
 ## Installation
 
