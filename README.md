@@ -30,6 +30,6 @@ buganize search "status:open"
 
 ## Documentation
 
-- See [USAGE.md](https://github.com/rly0nheart/buganize/blob/master/README.md) for full library and CLI documentation.
+- See [USAGE.md](https://github.com/rly0nheart/buganize/blob/master/USAGE.md) for full library and CLI documentation.
 - See [API Reference](https://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme) for details about
   limitations, and how the API works.
