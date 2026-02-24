@@ -5,11 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.2] - 2026-02-23
+## [1.1.0] - 2026-02-24
+
+### Added
+
+- **Severity field** — issues now expose `severity` (S0–S4), parsed independently from priority
+- **Duplicate tracking** — `duplicate_issue_ids` shows which issues have been marked as duplicates
+- **Blocking issues** — `blocking_issue_ids` sourced from the correct API field
+- **Collaborators** — list of collaborator emails on an issue
+- **Found-in versions** — `found_in` shows which builds/versions a bug was discovered in
+- **In-production flag** — `in_prod` indicates whether a bug has been seen in production
+- **View counts** — `views_24h`, `views_7d`, `views_30d` for gauging issue activity
+- 14 extra field columns available in CLI output (`severity`, `collaborators`, `found_in`, `in_prod`, `duplicates`,
+  `24h_views`, `7d_views`, `30d_views`, and more)
+- `buganize trackers` CLI command to list all available trackers and their IDs
+- `USAGE.md` — dedicated usage documentation for both the library and CLI
+- API reference now documents 14 public trackers and 6 additional endpoints (components, trackers, hotlists,
+  relationships)
 
 ### Changed
 
-- Update API docs and project README
+- Severity is shown by default in single-issue detail view
+- CLI `--tracker` argument now shows available tracker names in help output
+- `Buganize(tracker_id=...)` renamed to `Buganize(tracker=...)` — accepts both names (`"chromium"`) and numeric IDs (`"157"`)
+
+### Fixed
+
+- `details[21]` was incorrectly mapped to blocking issues — it is actually duplicate issue IDs
+- Blocking issue IDs are now correctly sourced from the top-level array (`TOP[36]`)
+- View counts corrected from `[1d, 7d, total]` to `[24h, 7d, 30d]`
 
 ## [1.0.1] - 2026-02-23
 

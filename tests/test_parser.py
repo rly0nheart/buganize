@@ -3,7 +3,7 @@ from datetime import timezone
 
 import pytest
 
-from buganize.api.models import IssueType, Priority, Status
+from buganize.api.models import IssueType, Priority, Severity, Status
 from buganize.api.parser import (
     _parse_comment,
     _parse_ccs,
@@ -40,22 +40,33 @@ def _make_issue_entry(
     created_ts=None,
     custom_fields=None,
     hotlist_ids=None,
+    duplicate_ids=None,
     blocking_ids=None,
     ccs=None,
+    severity=None,
+    found_in=None,
+    in_prod=None,
+    collaborators=None,
+    views=None,
 ):
     """Build a minimal 48-element issue entry array for testing."""
-    # Details array (need at least 22 elements)
-    details = [None] * 22
+    # Details array (need at least 31 elements for collaborators at index 30)
+    details = [None] * 31
     details[0] = component_id
     details[1] = issue_type
     details[2] = status
     details[3] = priority + 1  # API uses 1-indexed priority (P0=1, P1=2, ...)
+    if severity is not None:
+        details[4] = severity + 1  # API uses 1-indexed severity (S0=1, S1=2, ...)
     details[5] = title
     details[6] = [None, reporter_email, 1] if reporter_email else None
     details[9] = ccs or []
     details[13] = hotlist_ids or []
     details[14] = custom_fields or []
-    details[21] = blocking_ids or []
+    details[16] = found_in
+    details[19] = in_prod
+    details[21] = duplicate_ids or []
+    details[30] = collaborators or []
 
     # Top-level array (48 elements)
     entry = [None] * 48
@@ -67,7 +78,9 @@ def _make_issue_entry(
     entry[10] = [issue_type] if issue_type else None
     entry[11] = comment_count
     entry[13] = [None, owner_email, 1] if owner_email else None
+    entry[36] = blocking_ids or []
     entry[41] = tracker_id
+    entry[46] = views or []
     entry[47] = [None, "modifier@test.com", 1]
     return entry
 
@@ -348,6 +361,59 @@ class TestParseIssueFromEntry:
         entry = _make_issue_entry(blocking_ids=[10, 20])
         issue = parse_issue_from_entry(entry)
         assert issue.blocking_issue_ids == [10, 20]
+
+    def test_duplicate_ids(self):
+        entry = _make_issue_entry(duplicate_ids=[30, 40])
+        issue = parse_issue_from_entry(entry)
+        assert issue.duplicate_issue_ids == [30, 40]
+
+    def test_severity(self):
+        entry = _make_issue_entry(severity=2)
+        issue = parse_issue_from_entry(entry)
+        assert issue.severity == Severity.S2
+
+    def test_severity_none_when_missing(self):
+        entry = _make_issue_entry()
+        issue = parse_issue_from_entry(entry)
+        assert issue.severity is None
+
+    def test_found_in(self):
+        entry = _make_issue_entry(found_in=["M120", "M121"])
+        issue = parse_issue_from_entry(entry)
+        assert issue.found_in == ["M120", "M121"]
+
+    def test_in_prod_true(self):
+        entry = _make_issue_entry(in_prod=True)
+        issue = parse_issue_from_entry(entry)
+        assert issue.in_prod is True
+
+    def test_in_prod_none_when_missing(self):
+        entry = _make_issue_entry()
+        issue = parse_issue_from_entry(entry)
+        assert issue.in_prod is None
+
+    def test_collaborators(self):
+        collab_list = [
+            [None, "alice@test.com", 1],
+            [None, "bob@test.com", 1],
+        ]
+        entry = _make_issue_entry(collaborators=collab_list)
+        issue = parse_issue_from_entry(entry)
+        assert issue.collaborators == ["alice@test.com", "bob@test.com"]
+
+    def test_views(self):
+        entry = _make_issue_entry(views=[5, 20, 100])
+        issue = parse_issue_from_entry(entry)
+        assert issue.views_24h == 5
+        assert issue.views_7d == 20
+        assert issue.views_30d == 100
+
+    def test_views_empty(self):
+        entry = _make_issue_entry()
+        issue = parse_issue_from_entry(entry)
+        assert issue.views_24h == 0
+        assert issue.views_7d == 0
+        assert issue.views_30d == 0
 
     def test_url_property(self):
         entry = _make_issue_entry(issue_id=12345)

@@ -27,8 +27,16 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
     "milestone": lambda issue: ", ".join(issue.milestone) or None,
     "ccs": lambda issue: ", ".join(issue.ccs) or None,
     "hotlists": lambda issue: ", ".join(str(h) for h in issue.hotlist_ids) or None,
+    "severity": lambda issue: (
+        issue.severity.name if issue.severity is not None else None
+    ),
+    "collaborators": lambda issue: ", ".join(issue.collaborators) or None,
+    "found_in": lambda issue: ", ".join(issue.found_in) or None,
+    "in_prod": lambda issue: "Yes" if issue.in_prod else None,
     "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
-                              or None,
+    or None,
+    "duplicates": lambda issue: ", ".join(str(d) for d in issue.duplicate_issue_ids)
+    or None,
     "cve": lambda issue: ", ".join(issue.cve) or None,
     "cwe": lambda issue: str(int(issue.cwe_id)) if issue.cwe_id is not None else None,
     "build": lambda issue: issue.build_number,
@@ -58,8 +66,21 @@ EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
     "comments": lambda issue: str(issue.comment_count),
     "stars": lambda issue: str(issue.star_count),
     "last_modifier": lambda issue: issue.last_modifier,
+    "24h_views": lambda issue: str(issue.views_24h) if issue.views_24h else None,
     "7d_views": lambda issue: str(issue.views_7d) if issue.views_7d else None,
+    "30d_views": lambda issue: str(issue.views_30d) if issue.views_30d else None,
 }
+
+
+def _column_header(key: str) -> str:
+    """
+    Derive a column header from a field key.
+
+    :param key: The field key (e.g. ``"merge_request"``).
+    :return: Title-cased header (e.g. ``"Merge Request"``).
+    """
+
+    return key.replace("_", " ").title()
 
 
 class Save:
@@ -131,8 +152,8 @@ class Format:
         self.items = items
 
     def to_rows(
-            self,
-            fields: t.Optional[list[str]] = None,
+        self,
+        fields: t.Optional[list[str]] = None,
     ) -> list[dict[str, t.Any]]:
         """
         Convert the items into a list of row dicts.
@@ -147,39 +168,39 @@ class Format:
         return Convert(items=self.items, fields=fields).to_dict()
 
 
-def _column_header(key: str) -> str:
+class Print:
     """
-    Derive a column header from a field key.
+    Renders issues, comments, or tracker info as Rich tables to the console.
 
-    :param key: The field key (e.g. ``"merge_request"``).
-    :return: Title-cased header (e.g. ``"Merge Request"``).
-    """
+    Dispatches to the appropriate rendering method based on the data type:
 
-    return key.replace("_", " ").title()
+    - ``list[Issue]`` → :meth:`issues` (multi-issue table)
+    - ``Issue`` → :meth:`issue` (single-issue detail view)
+    - ``list[Comment]`` → :meth:`comments` (comment table)
+    - ``dict[str, tuple[str, str]]`` → :meth:`trackers` (tracker listing)
 
-
-class Table:
-    """
-    Renders issues or comments as Rich tables to the console.
-
-    :param items: List of :class:`Issue` or :class:`Comment` objects.
+    :param data: The data to render. Accepted types are a list of issues,
+        a single issue, a list of comments, or the ``TRACKER_NAMES`` dict.
     """
 
-    def __init__(self, items: t.Union[list[Issue], list[Comment]]):
-        self.items = items
+    def __init__(
+        self, data: t.Union[list[Issue], list[Comment], Issue, dict[str, tuple]]
+    ):
+        self.data = data
 
     @staticmethod
-    def make_table(
-            columns: list[tuple[str, dict[str, t.Any]]],
-    ) -> Table:
+    def _make_table(
+        columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
+    ) -> RichTable:
         """
-        Create a Rich table with the given columns and keyword arguments.
+        Create a Rich table with the given columns.
 
         :param columns: List of ``(header, column_kwargs)`` tuples.
+        :param expand: Whether the table should expand to fill the terminal width.
         :return: A configured Rich table ready for rows.
         """
 
-        table = RichTable(box=box.MINIMAL, highlight=True, expand=True)
+        table = RichTable(box=box.ASCII, highlight=True, expand=expand)
 
         for header, col_kwargs in columns:
             table.add_column(header, **col_kwargs)
@@ -188,19 +209,165 @@ class Table:
 
     def print(self, fields: t.Optional[list[str]] = None):
         """
-        Print items as a Rich table, dispatching to :meth:`issues` or
-        :meth:`comments` based on item type.
+        Print data as a Rich table, dispatching based on data type.
+
+        Routes to :meth:`issue` for a single Issue, :meth:`issues` for a list
+        of issues, or :meth:`comments` for a list of comments. For tracker
+        data, use :meth:`trackers` directly instead.
 
         :param fields: Extra field names to include as columns (issues only).
         """
 
-        if not self.items:
+        if not self.data:
             return
 
-        if all(isinstance(item, Issue) for item in self.items):
+        if isinstance(self.data, Issue):
+            self.issue(fields=fields)
+        elif all(isinstance(item, Issue) for item in self.data):
             self.issues(fields=fields)
-        elif all(isinstance(item, Comment) for item in self.items):
+        elif all(isinstance(item, Comment) for item in self.data):
             self.comments()
+
+    def issue(self, fields: t.Optional[list[str]] = None):
+        """
+        Print a single issue with full detail.
+
+        Always shows the basic fields. Extra fields are shown only when
+        requested via --fields or --all-fields.
+
+        :param fields: Extra field names to include.
+        """
+
+        enabled_fields = set(fields or [])
+        all_fields = bool(enabled_fields)
+
+        def is_shown(field_name: str) -> bool:
+            return all_fields or field_name in enabled_fields
+
+        # Basic fields (always shown).
+        console.print(f"Issue #{self.data.id}")
+        console.print(f"  URL:           {self.data.url}")
+        console.print(f"  Title:         {self.data.title}")
+        console.print(f"  Status:        {self.data.status.name}")
+        console.print(f"  Priority:      {self.data.priority.name}")
+        if self.data.severity is not None:
+            console.print(f"  Severity:      {self.data.severity.name}")
+        if self.data.issue_type:
+            console.print(f"  Type:          {self.data.issue_type.name}")
+        if self.data.reporter:
+            console.print(f"  Reporter:      {self.data.reporter}")
+        if self.data.owner:
+            console.print(f"  Owner:         {self.data.owner}")
+        if self.data.component_id:
+            console.print(f"  Component:     {self.data.component_id}")
+        if self.data.created_at:
+            console.print(f"  Created:       {self.data.created_at.isoformat()}")
+        if self.data.modified_at:
+            console.print(f"  Modified:      {self.data.modified_at.isoformat()}")
+        console.print(f"  Comments:      {self.data.comment_count}")
+
+        # Extra fields (only when requested).
+        if is_shown("verifier") and self.data.verifier:
+            console.print(f"  Verifier:      {self.data.verifier}")
+        if is_shown("tags") and self.data.component_tags:
+            console.print(f"  Comp. Tags:    {', '.join(self.data.component_tags)}")
+        if is_shown("ancestor_tags") and self.data.component_ancestor_tags:
+            console.print(
+                f"  Ancestor Tags: {', '.join(self.data.component_ancestor_tags)}"
+            )
+        if is_shown("labels") and self.data.labels:
+            console.print(f"  Labels:        {', '.join(self.data.labels)}")
+        if is_shown("os") and self.data.os:
+            console.print(f"  OS:            {', '.join(self.data.os)}")
+        if is_shown("milestone") and self.data.milestone:
+            console.print(f"  Milestone:     {', '.join(self.data.milestone)}")
+        if is_shown("ccs") and self.data.ccs:
+            console.print(f"  CCs:           {', '.join(self.data.ccs)}")
+        if is_shown("hotlists") and self.data.hotlist_ids:
+            console.print(
+                f"  Hotlists:      {', '.join(str(h) for h in self.data.hotlist_ids)}"
+            )
+        if is_shown("collaborators") and self.data.collaborators:
+            console.print(f"  Collaborators: {', '.join(self.data.collaborators)}")
+        if is_shown("found_in") and self.data.found_in:
+            console.print(f"  Found In:      {', '.join(self.data.found_in)}")
+        if is_shown("in_prod") and self.data.in_prod:
+            console.print(f"  In Prod:       Yes")
+        if is_shown("blocking") and self.data.blocking_issue_ids:
+            console.print(
+                f"  Blocking:      {', '.join(str(b) for b in self.data.blocking_issue_ids)}"
+            )
+        if is_shown("duplicates") and self.data.duplicate_issue_ids:
+            console.print(
+                f"  Duplicates:    {', '.join(str(d) for d in self.data.duplicate_issue_ids)}"
+            )
+        if is_shown("cve") and self.data.cve:
+            console.print(f"  CVE:           {', '.join(self.data.cve)}")
+        if is_shown("cwe") and self.data.cwe_id is not None:
+            console.print(f"  CWE ID:        {int(self.data.cwe_id)}")
+        if is_shown("build") and self.data.build_number:
+            console.print(f"  Build:         {self.data.build_number}")
+        if is_shown("introduced_in") and self.data.introduced_in:
+            console.print(f"  Introduced In: {self.data.introduced_in}")
+        if is_shown("merge") and self.data.merge:
+            console.print(f"  Merge:         {', '.join(self.data.merge)}")
+        if is_shown("merge_request") and self.data.merge_request:
+            console.print(f"  Merge Req.:    {', '.join(self.data.merge_request)}")
+        if is_shown("release_block") and self.data.release_block:
+            console.print(f"  Release Block: {', '.join(self.data.release_block)}")
+        if is_shown("notice") and self.data.notice:
+            console.print(f"  Notice:        {self.data.notice}")
+        if is_shown("flaky_test") and self.data.flaky_test:
+            console.print(f"  Flaky Test:    {self.data.flaky_test}")
+        if is_shown("est_days") and self.data.estimated_days is not None:
+            console.print(f"  Est. Days:     {self.data.estimated_days}")
+        if is_shown("next_action") and self.data.next_action:
+            console.print(f"  Next Action:   {self.data.next_action}")
+        if is_shown("vrp_reward") and self.data.vrp_reward is not None:
+            console.print(f"  VRP Reward:    {self.data.vrp_reward}")
+        if is_shown("irm_link") and self.data.irm_link:
+            console.print(f"  IRM Link:      {self.data.irm_link}")
+        if is_shown("sec_release") and self.data.security_release:
+            console.print(f"  Sec. Release:  {', '.join(self.data.security_release)}")
+        if is_shown("fixed_by") and self.data.fixed_by_code_changes:
+            console.print(
+                f"  Fixed By:      {', '.join(self.data.fixed_by_code_changes)}"
+            )
+        if is_shown("verified") and self.data.verified_at:
+            console.print(f"  Verified:      {self.data.verified_at.isoformat()}")
+        if is_shown("stars"):
+            console.print(f"  Stars:         {self.data.star_count}")
+        if is_shown("last_modifier") and self.data.last_modifier:
+            console.print(f"  Last Modifier: {self.data.last_modifier}")
+        if is_shown("24h_views") and self.data.views_24h:
+            console.print(f"  24h Views:     {self.data.views_24h}")
+        if is_shown("7d_views") and self.data.views_7d:
+            console.print(f"  7d Views:      {self.data.views_7d}")
+        if is_shown("30d_views") and self.data.views_30d:
+            console.print(f"  30d Views:     {self.data.views_30d}")
+        if all_fields and self.data.custom_fields:
+            console.print(f"  Other Fields:")
+            for key, value in self.data.custom_fields.items():
+                console.print(f"    {key}: {value}")
+
+    def trackers(self):
+        """
+        Print available trackers as a Rich table with ID, name, and URL columns.
+
+        Expects ``self.data`` to be the ``TRACKER_NAMES`` dict
+        (``dict[str, tuple[str, str]]``) mapping tracker names to ``(id, url)`` tuples.
+        """
+
+        table = self._make_table(
+            columns=[
+                ("ID", {"style": "cyan", "justify": "right"}),
+                ("Name", {"style": "bold"}),
+                ("URL", {}),
+            ],
+        )
+        for name, (tid, url) in self.data.items():
+            table.add_row(tid, name, url)
+        console.print(table)
 
     def issues(self, fields: t.Optional[list[str]] = None):
         """
@@ -211,10 +378,10 @@ class Table:
 
         extra = fields or []
         extra_columns = [(_column_header(f), {}) for f in extra if f in EXTRA_FIELDS]
-        table = self.make_table(
+        table = self._make_table(
             columns=[
                 ("#", {"justify": "right"}),
-                ("P", {}),
+                ("Priority", {}),
                 ("ID", {"justify": "right"}),
                 ("Type", {}),
                 ("Title", {"overflow": "fold"}),
@@ -222,9 +389,10 @@ class Table:
                 ("Modified", {"justify": "right"}),
                 *extra_columns,
             ],
+            expand=True,
         )
 
-        for index, issue in enumerate(self.items, start=1):
+        for index, issue in enumerate(self.data, start=1):
             row = [
                 str(index),
                 issue.priority.name,
@@ -247,16 +415,17 @@ class Table:
         Print comments as a Rich table.
         """
 
-        table = self.make_table(
+        table = self._make_table(
             columns=[
                 ("#", {"style": "cyan", "no_wrap": True}),
                 ("Author", {"style": "bold"}),
                 ("Date", {"no_wrap": True}),
                 ("Body", {}),
             ],
+            expand=True,
         )
 
-        for comment in self.items:
+        for comment in self.data:
             table.add_row(
                 str(comment.comment_number),
                 comment.author or "unknown",
@@ -280,9 +449,9 @@ class Convert:
     """
 
     def __init__(
-            self,
-            items: t.Union[list[Issue], list[Comment]],
-            fields: t.Optional[list[str]] = None,
+        self,
+        items: t.Union[list[Issue], list[Comment]],
+        fields: t.Optional[list[str]] = None,
     ):
         self.items = items
         self.fields = fields

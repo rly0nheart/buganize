@@ -16,6 +16,7 @@ __all__ = [
     "IssueUpdatesResult",
     "Priority",
     "SearchResult",
+    "Severity",
     "Status",
 ]
 
@@ -72,6 +73,28 @@ class Priority(enum.IntEnum):
     def _missing_(cls, value):
         obj = int.__new__(cls, value)
         obj._name_ = f"P{value}"
+        obj._value_ = value
+        return obj
+
+
+class Severity(enum.IntEnum):
+    """
+    Issue severity levels. S0 is the most severe, S4 is the lowest.
+
+    Severity often matches priority but can diverge, especially on
+    security issues. Unknown values from the API get an auto-generated SN name.
+    """
+
+    S0 = 0
+    S1 = 1
+    S2 = 2
+    S3 = 3
+    S4 = 4
+
+    @classmethod
+    def _missing_(cls, value):
+        obj = int.__new__(cls, value)
+        obj._name_ = f"S{value}"
         obj._value_ = value
         return obj
 
@@ -162,12 +185,16 @@ class Issue:
         title: Issue title/summary.
         status: Current status (open, fixed, etc.).
         priority: Priority level (P0-P4).
+        severity: Severity level (S0-S4). Often matches priority but can diverge.
         issue_type: Category (bug, feature request, etc.).
         reporter: Email of the person who filed the issue.
         owner: Email of the currently assigned owner.
         verifier: Email of the person who verified the fix.
         component_id: Numeric ID of the primary component.
         ccs: List of CC'd email addresses.
+        collaborators: List of collaborator email addresses.
+        found_in: "Found In" version strings (e.g. ["CP21.260116.011.A1"]).
+        in_prod: Whether the issue has been observed in production.
         created_at: When the issue was created (UTC).
         modified_at: When the issue was last modified (UTC).
         verified_at: When the fix was verified (UTC).
@@ -176,7 +203,11 @@ class Issue:
         tracker_id: Tracker ID (e.g. 157 for Chromium, 183 for Fuchsia).
         last_modifier: Email of the last person to modify the issue.
         hotlist_ids: IDs of hotlists this issue belongs to.
-        blocking_issue_ids: IDs of issues this one blocks or is related to.
+        blocking_issue_ids: IDs of issues this one blocks.
+        duplicate_issue_ids: IDs of issues marked as duplicates of this one.
+        views_24h: Number of views in the last 24 hours.
+        views_7d: Number of views in the last 7 days.
+        views_30d: Number of views in the last 30 days.
         component_tags: Component tags (e.g. ["Blink>JavaScript"]).
         component_ancestor_tags: Full component ancestry.
         labels: Tracker-specific labels.
@@ -204,12 +235,16 @@ class Issue:
     title: str
     status: Status = Status.NEW
     priority: Priority = Priority.P2
+    severity: t.Optional[Severity] = None
     issue_type: t.Optional[IssueType] = None
     reporter: t.Optional[str] = None
     owner: t.Optional[str] = None
     verifier: t.Optional[str] = None
     component_id: t.Optional[int] = None
     ccs: list[str] = field(default_factory=list)
+    collaborators: list[str] = field(default_factory=list)
+    found_in: list[str] = field(default_factory=list)
+    in_prod: t.Optional[bool] = None
     created_at: t.Optional[datetime] = None
     modified_at: t.Optional[datetime] = None
     verified_at: t.Optional[datetime] = None
@@ -219,6 +254,10 @@ class Issue:
     last_modifier: t.Optional[str] = None
     hotlist_ids: list[int] = field(default_factory=list)
     blocking_issue_ids: list[int] = field(default_factory=list)
+    duplicate_issue_ids: list[int] = field(default_factory=list)
+    views_24h: int = 0
+    views_7d: int = 0
+    views_30d: int = 0
     component_tags: list[str] = field(default_factory=list)
     component_ancestor_tags: list[str] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)

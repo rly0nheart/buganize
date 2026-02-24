@@ -7,6 +7,7 @@ from buganize.api.models import (
     IssueUpdatesResult,
     Priority,
     SearchResult,
+    Severity,
     Status,
 )
 
@@ -45,6 +46,17 @@ class TestPriority:
         assert p99.name == "P99"
 
 
+class TestSeverity:
+    def test_known_values(self):
+        assert Severity.S0 == 0
+        assert Severity.S4 == 4
+
+    def test_missing_value(self):
+        s99 = Severity(99)
+        assert s99.value == 99
+        assert s99.name == "S99"
+
+
 class TestIssueType:
     def test_known_values(self):
         assert IssueType.BUG == 1
@@ -65,11 +77,19 @@ class TestIssue:
         issue = Issue(id=1, title="t")
         assert issue.status == Status.NEW
         assert issue.priority == Priority.P2
+        assert issue.severity is None
         assert issue.ccs == []
+        assert issue.collaborators == []
+        assert issue.found_in == []
+        assert issue.in_prod is None
+        assert issue.duplicate_issue_ids == []
         assert issue.os == []
         assert issue.custom_fields == {}
         assert issue.comment_count == 0
         assert issue.star_count == 0
+        assert issue.views_24h == 0
+        assert issue.views_7d == 0
+        assert issue.views_30d == 0
 
 
 class TestSearchResult:

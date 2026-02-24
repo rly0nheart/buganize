@@ -10,6 +10,7 @@ from .api.models import (
     IssueUpdatesResult,
     Priority,
     SearchResult,
+    Severity,
     Status,
 )
 from .cli.output import EXTRA_FIELDS
@@ -28,5 +29,6 @@ __all__ = [
     "IssueUpdatesResult",
     "Priority",
     "SearchResult",
+    "Severity",
     "Status",
 ]

@@ -14,6 +14,7 @@ from ..api.models import (
     IssueUpdatesResult,
     Priority,
     SearchResult,
+    Severity,
     Status,
 )
 
@@ -28,7 +29,7 @@ def strip_response_prefix(raw_text: str) -> str:
 
     for prefix in (")]}'\n", ")]}'\\n", ")]}'\r\n"):
         if raw_text.startswith(prefix):
-            return raw_text[len(prefix):]
+            return raw_text[len(prefix) :]
     return raw_text
 
 
@@ -71,9 +72,9 @@ def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
     """
 
     if (
-            not raw_timestamp
-            or not isinstance(raw_timestamp, list)
-            or len(raw_timestamp) < 1
+        not raw_timestamp
+        or not isinstance(raw_timestamp, list)
+        or len(raw_timestamp) < 1
     ):
         return None
     try:
@@ -208,7 +209,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     """
     Parse a single issue from the 48-element array format used across all endpoints.
 
-    This is the api parser. Every endpoint (search, get, batch) ultimately
+    This is the core parser. Every endpoint (search, get, batch) ultimately
     produces these 48-element arrays, just nested at different paths.
 
     Array index map::
@@ -219,12 +220,14 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
           [4]  = created timestamp [seconds, nanos]
           [5]  = modified timestamp [seconds, nanos]
           [6]  = verified timestamp [seconds, nanos]
-          [9]  = star count (int)
-          [10] = [unknown constant, always 3]
+          [9]  = star count (int or None)
+          [10] = unknown constant (always 3)
           [11] = comment count (int)
           [13] = owner user array
           [14] = custom field definitions (schema, not values)
+          [36] = blocking issue IDs (list of ints)
           [41] = tracker ID (int)
+          [46] = view counts [24h, 7d, 30d] (empty list = 0 views)
           [47] = last modifier user array
 
         Details array [2] (32 elements):
@@ -232,13 +235,17 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
           [1]  = issue type (int, maps to IssueType enum)
           [2]  = status (int, maps to Status enum)
           [3]  = priority (int, 1-indexed: P0=1, P1=2, P2=3, P3=4, P4=5)
+          [4]  = severity (int, 1-indexed: S0=1, S1=2, S2=3, S3=4, S4=5)
           [5]  = title (str)
           [6]  = reporter user array
           [7]  = verifier user array
           [9]  = CCs list (list of user arrays)
           [13] = hotlist IDs (list of ints)
           [14] = custom field values (list of field arrays)
-          [21] = blocking/related issue IDs (list of ints)
+          [16] = found_in versions (list of strings)
+          [19] = in_prod flag (True = yes, None = no)
+          [21] = duplicate issue IDs (list of ints)
+          [30] = collaborators (list of user arrays)
 
     :param raw_entry: The 48-element array representing one issue.
     :return: A fully populated Issue dataclass.
@@ -254,13 +261,17 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     priority_raw = _safe_get(details, 3, default=3)  # 1-indexed: P0=1, P1=2, ...
     # Convert 1-indexed API priority to 0-indexed enum (P0=0, P1=1, ...)
     priority_value = (priority_raw - 1) if isinstance(priority_raw, int) else 2
+    severity_raw = _safe_get(details, 4)  # 1-indexed: S0=1, S1=2, ...
     title = _safe_get(details, 5, default="") or ""
     reporter_array = _safe_get(details, 6)
     verifier_array = _safe_get(details, 7)
     ccs_array = _safe_get(details, 9)
     hotlist_ids_array = _safe_get(details, 13)
     custom_field_entries = _safe_get(details, 14)
-    blocking_ids_array = _safe_get(details, 21)
+    found_in_raw = _safe_get(details, 16)
+    in_prod_raw = _safe_get(details, 19)
+    duplicate_ids_array = _safe_get(details, 21)
+    collaborators_array = _safe_get(details, 30)
 
     # --- Top-level fields ---
     created_timestamp = _safe_get(raw_entry, 4)
@@ -272,7 +283,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     issue_type_value = issue_type_detail
     comment_count = _safe_get(raw_entry, 11, default=0) or 0
     owner_array = _safe_get(raw_entry, 13)
+    blocking_ids_array = _safe_get(raw_entry, 36)
     tracker_id = _safe_get(raw_entry, 41)
+    views_array = _safe_get(raw_entry, 46, default=[]) or []
     last_modifier_array = _safe_get(raw_entry, 47)
 
     # --- Parse custom fields into a mutable dict, then pop known ones ---
@@ -319,6 +332,42 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         except (TypeError, ValueError):
             return None
 
+    # Parse severity (1-indexed like priority: S0=1, S1=2, ...)
+    severity_value = None
+    if isinstance(severity_raw, int):
+        severity_value = Severity(severity_raw - 1)
+
+    # Parse found_in version strings
+    found_in: list[str] = []
+    if isinstance(found_in_raw, list):
+        found_in = [v for v in found_in_raw if isinstance(v, str)]
+
+    # Parse in_prod flag (True = yes, None = no)
+    in_prod = True if in_prod_raw is True else None
+
+    # Parse view counts [24h, 7d, 30d]
+    views_24h = (
+        views_array[0]
+        if isinstance(views_array, list)
+        and len(views_array) > 0
+        and isinstance(views_array[0], int)
+        else 0
+    )
+    views_7d = (
+        views_array[1]
+        if isinstance(views_array, list)
+        and len(views_array) > 1
+        and isinstance(views_array[1], int)
+        else 0
+    )
+    views_30d = (
+        views_array[2]
+        if isinstance(views_array, list)
+        and len(views_array) > 2
+        and isinstance(views_array[2], int)
+        else 0
+    )
+
     return Issue(
         id=issue_id,
         title=title,
@@ -326,12 +375,16 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         priority=(
             Priority(priority_value) if priority_value is not None else Priority.P2
         ),
+        severity=severity_value,
         issue_type=IssueType(issue_type_value) if issue_type_value else None,
         reporter=_parse_email(reporter_array),
         owner=_parse_email(owner_array),
         verifier=_parse_email(verifier_array),
         component_id=component_id,
         ccs=_parse_ccs(ccs_array),
+        collaborators=_parse_ccs(collaborators_array),
+        found_in=found_in,
+        in_prod=in_prod,
         created_at=_parse_timestamp(created_timestamp),
         modified_at=_parse_timestamp(modified_timestamp),
         verified_at=_parse_timestamp(verified_timestamp),
@@ -341,6 +394,10 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         last_modifier=_parse_email(last_modifier_array),
         hotlist_ids=_parse_int_list(hotlist_ids_array),
         blocking_issue_ids=_parse_int_list(blocking_ids_array),
+        duplicate_issue_ids=_parse_int_list(duplicate_ids_array),
+        views_24h=views_24h,
+        views_7d=views_7d,
+        views_30d=views_30d,
         component_tags=pop_string_list("component_tags"),
         component_ancestor_tags=pop_string_list("component_ancestor_tags"),
         labels=pop_string_list("chromium_labels"),
@@ -366,9 +423,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
 
 
 def parse_search_response(
-        raw_text: str,
-        query: str = "",
-        page_size: int = 50,
+    raw_text: str,
+    query: str = "",
+    page_size: int = 50,
 ) -> SearchResult:
     """
     Parse a search/list response.

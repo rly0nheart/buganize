@@ -4,6 +4,7 @@ import random
 import typing as t
 
 import httpx
+from httpx import QueryParams
 
 from .parser import (
     parse_batch_response,
@@ -18,12 +19,24 @@ if t.TYPE_CHECKING:
 
 __all__ = ["Buganize", "TRACKER_NAMES"]
 
-DEFAULT_TRACKER_ID = None  # None = search all public trackers
-TRACKER_NAMES: dict[str, str] = {
-    "chromium": "157",
-    "fuchsia": "183",
+TRACKER_NAMES: dict[str, tuple[str, str]] = {
+    "pigweed": ("1", "https://issues.pigweed.dev"),
+    "gerrit": ("27", "https://issues.gerritcodereview.com"),
+    "git": ("53", "https://git.issues.gerritcodereview.com"),
+    "skia": ("79", "https://issues.skia.org"),
+    "webrtc": ("105", "https://issues.webrtc.org"),
+    "libyuv": ("131", "https://libyuv.issues.chromium.org"),
+    "chromium": ("157", "https://issues.chromium.org"),
+    "fuchsia": ("183", "https://issues.fuchsia.dev"),
+    "angle": ("235", "https://issues.angleproject.org"),
+    "aomedia": ("261", "https://aomedia.issues.chromium.org"),
+    "webm": ("287", "https://issues.webmproject.org"),
+    "gn": ("339", "https://gn.issues.chromium.org"),
+    "project-zero": ("365", "https://project-zero.issues.chromium.org"),
+    "oss-fuzz": ("391", "https://issues.oss-fuzz.com"),
 }
-USER_AGENTS = [
+
+USER_AGENTS: list[str] = [
     "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/87.0.4256.0 Safari/537.36",
@@ -72,17 +85,21 @@ class Buganize:
         async with Buganize() as client:
             result = await client.search("priority:p1")
 
-    :param tracker_id: Tracker ID to query. Defaults to None (all trackers).
+    :param tracker: Tracker to query. Accepts a name (e.g. ``"chromium"``)
+        or a numeric ID string (e.g. ``"157"``). Names are resolved via
+        ``TRACKER_NAMES``. Defaults to None (search all public trackers).
     :param timeout: HTTP request timeout in seconds. Defaults to 30.
     """
 
     def __init__(
             self,
-            tracker_id: t.Optional[str] = DEFAULT_TRACKER_ID,
+            tracker: t.Optional[str] = None,
             timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
-        self.tracker_id = tracker_id
+
+        self.tracker_id, _ = TRACKER_NAMES.get(tracker, (tracker, None))
+
         self._http = httpx.AsyncClient(
             headers={
                 "Content-Type": "application/json",
@@ -104,7 +121,7 @@ class Buganize:
 
     async def search(
             self,
-            query: str = "status:open",
+            query: str,
             page_size: int = 50,
             page_token: t.Optional[str] = None,
     ) -> SearchResult:
@@ -138,7 +155,7 @@ class Buganize:
 
         response: Response = await self._http.post(url, json=request_body)
         response.raise_for_status()
-        return parse_search_response(response.text, query=query, page_size=page_size)
+        return parse_search_response(raw_text=response.text, query=query, page_size=page_size)
 
     async def next_page(self, result: SearchResult) -> t.Optional[SearchResult]:
         """
@@ -150,6 +167,7 @@ class Buganize:
 
         if not result.has_more:
             return None
+
         return await self.search(
             query=result.query,
             page_size=result.page_size,
@@ -165,14 +183,16 @@ class Buganize:
         """
 
         request_body: list = [issue_id, 1, 1]
-        tracker_param = (
-            f"?currentTrackerId={self.tracker_id}" if self.tracker_id else ""
-        )
-        url: str = f"{self.base_endpoint}/issues/{issue_id}/getIssue{tracker_param}"
+        url: str = f"{self.base_endpoint}/issues/{issue_id}/getIssue"
 
-        response: Response = await self._http.post(url, json=request_body)
+        response: Response = await self._http.post(
+            url,
+            json=request_body,
+            params=QueryParams({"currentTrackerId": self.tracker_id}),
+        )
+
         response.raise_for_status()
-        return parse_issue_detail_response(response.text)
+        return parse_issue_detail_response(raw_text=response.text)
 
     async def issues(self, issue_ids: list[int]) -> list[Issue]:
         """
@@ -187,7 +207,7 @@ class Buganize:
 
         response: Response = await self._http.post(url, json=request_body)
         response.raise_for_status()
-        return parse_batch_response(response.text)
+        return parse_batch_response(raw_text=response.text)
 
     async def issue_updates(self, issue_id: int) -> IssueUpdatesResult:
         """
@@ -200,14 +220,13 @@ class Buganize:
         :return: Updates, total count, and pagination token.
         """
 
-        tracker_param = (
-            f"?currentTrackerId={self.tracker_id}" if self.tracker_id else ""
+        url: str = f"{self.base_endpoint}/issues/{issue_id}/updates"
+        response: Response = await self._http.post(
+            url, json=[issue_id], params=QueryParams({"currentTrackerId": self.tracker_id})
         )
-        url: str = f"{self.base_endpoint}/issues/{issue_id}/updates{tracker_param}"
-
-        response: Response = await self._http.post(url, json=[issue_id])
         response.raise_for_status()
-        return parse_updates_response(response.text)
+
+        return parse_updates_response(raw_text=response.text)
 
     async def comments(self, issue_id: int) -> list[Comment]:
         """
@@ -220,5 +239,5 @@ class Buganize:
         :return: Comments oldest-first.
         """
 
-        result: IssueUpdatesResult = await self.issue_updates(issue_id)
+        result: IssueUpdatesResult = await self.issue_updates(issue_id=issue_id)
         return result.comments

@@ -1,7 +1,7 @@
 [project]
 name = "buganize"
-version = "1.0.2"
-description = "Python client for the Google Issue Tracker"
+version = "1.1.0"
+description = "Unofficial Python client for the Google Issue Tracker"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -30,8 +30,8 @@ dependencies = [
 repository = "https://github.com/rly0nheart/buganize"
 
 [project.scripts]
-buganize = "buganize.cli.main:start"
-buganise = "buganize.cli.main:start"
+buganize = "buganize.cli.cli:start"
+buganise = "buganize.cli.cli:start"
 
 [dependency-groups]
 dev = [
