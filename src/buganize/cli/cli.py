@@ -84,15 +84,16 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         prog=__pkg__,
-        description="Buganize: Python client for the Google Issue Tracker",
+        description="Python client for the Google Issue Tracking system (Buganizer)",
         epilog=f"© {datetime.now().year} Ritchie Mwewa",
     )
     parser.add_argument(
         "-t",
         "--tracker",
+        action="append",
         default=None,
         choices=TRACKER_NAMES.keys(),
-        help="tracker name (default: all)",
+        help="tracker name (repeatable). Defaults to all",
     )
     parser.add_argument(
         "--debug",
@@ -190,10 +191,10 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     export_formats = args.export
     per_page = args.per_page
     limit = args.limit
-    tracker = args.tracker or "global"
+    tracker_label = ", ".join(args.tracker) if args.tracker else "all"
 
     status.update(
-        f"[dim][bold]Searching [italic]{tracker}[/] issues for [bold green]{query}[/bold green]…[/dim]"
+        f"[dim][bold]Searching [italic]{tracker_label}[/] issues for [bold green]{query}[/bold green]…[/dim]"
     )
     result = await client.search(query=query, page_size=per_page)
     issues = list(result.issues)
@@ -239,7 +240,9 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     export_formats = args.export
 
     status.update(f"[dim]Getting issue {issue_id}…[/]")
-    issue = await client.issue(issue_id=args.issue_id)
+    # Use batch endpoint to get the issue body/description (getIssue doesn't include it).
+    issues = await client.issues(issue_ids=[issue_id])
+    issue = issues[0]
     fields = resolve_fields(args=args)
 
     output.Print(data=issue).print(fields=fields)
@@ -308,7 +311,7 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     :param status: Rich status spinner for progress updates.
     """
 
-    async with Buganize(tracker=args.tracker, timeout=args.timeout) as client:
+    async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
         await args.func(client=client, args=args, status=status)
 
 
@@ -334,8 +337,9 @@ def start():
     start_time = datetime.now()
     try:
         console.log(
-            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} (w/ [italic]{args.tracker or 'global'} "
-            f"tracker[/]) at {datetime.now().strftime('%x %X')}"
+            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} (w/ tracker{'s' if args.tracker and len(args.tracker) > 1 else ''}: [italic]"
+            f"{', '.join(args.tracker) if args.tracker else 'all'}"
+            f") at {datetime.now().strftime('%x %X')}"
         )
         with console.status("Initialising") as status:
             check_updates(status=status)

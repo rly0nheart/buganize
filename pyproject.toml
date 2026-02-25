@@ -1,15 +1,28 @@
 [project]
 name = "buganize"
-version = "1.1.2"
-description = "Unofficial Python client for the Google Issue Tracker"
+version = "1.2.0"
+description = "Unofficial Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "Ritchie Mwewa", email = "hi@rly0nheart.com" },
 ]
+keywords = [
+    "buganizer",
+    "google-issue-tracker",
+    "issue-tracker",
+    "bug-tracker",
+    "bug-bounty",
+    "vulnerability",
+    "security",
+    "chromium",
+    "cve",
+    "vrp",
+    "google",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -37,7 +50,7 @@ buganise = "buganize.cli.cli:start"
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
-    "black>=26.1.0"
+    "black[jupyter]>=26.1.0"
 ]
 
 [tool.pytest.ini_options]

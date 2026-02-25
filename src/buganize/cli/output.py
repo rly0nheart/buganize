@@ -6,6 +6,8 @@ import typing as t
 from datetime import datetime
 
 from rich import box
+from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.table import Table as RichTable
 
 from ..api.models import Comment, Issue
@@ -245,7 +247,7 @@ class Print:
             return all_fields or field_name in enabled_fields
 
         # Basic fields (always shown).
-        console.print(f"Issue #{self.data.id}")
+        console.print(f"\nIssue #{self.data.id}")
         console.print(f"  URL:           {self.data.url}")
         console.print(f"  Title:         {self.data.title}")
         console.print(f"  Status:        {self.data.status.name}")
@@ -265,6 +267,11 @@ class Print:
         if self.data.modified_at:
             console.print(f"  Modified:      {self.data.modified_at.isoformat()}")
         console.print(f"  Comments:      {self.data.comment_count}")
+        if self.data.body:
+            console.print()
+            console.print(
+                Panel(Markdown(self.data.body), title="Description", border_style="dim")
+            )
 
         # Extra fields (only when requested).
         if is_shown("verifier") and self.data.verifier:

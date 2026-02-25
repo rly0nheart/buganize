@@ -53,8 +53,15 @@ async def search():
 ```python
 async def search_chromium():
     # Search only within the Chromium tracker
-    async with Buganize(tracker="chromium") as client:
+    async with Buganize(trackers=["chromium"]) as client:
         result = await client.search("status:open component:Blink")
+```
+
+```python
+async def search_multiple():
+    # Search across Chromium and Fuchsia trackers
+    async with Buganize(trackers=["chromium", "fuchsia"]) as client:
+        result = await client.search("status:open")
 ```
 
 ### Get a single issue
@@ -78,6 +85,15 @@ async def get_issue():
         print(issue.blocking_issue_ids)  # e.g. [11111]
         print(issue.views_24h, issue.views_7d, issue.views_30d)  # e.g. 5, 20, 100
 ```
+
+> **Note:** `client.issue()` does not return the issue description (`issue.body` will be `None`).
+> If you need the description, use the batch endpoint with a single-element list:
+>
+> ```python
+> issues = await client.issues([40060244])
+> issue = issues[0]
+> print(issue.body)  # Full description text
+> ```
 
 ### Batch get issues
 
@@ -148,8 +164,8 @@ buganize search "status:open" -l 200
 
 ### Tracker selection
 
-By default, buganize searches across all public trackers on issuetracker.google.com. Use `-t/--tracker` to narrow to a
-specific tracker:
+By default, buganize searches across all public trackers on issuetracker.google.com. Use `-t/--tracker` to narrow to
+one or more specific trackers (repeat `-t` for multiple):
 
 ```bash
 # Search only Chromium issues
@@ -158,8 +174,11 @@ buganize -t chromium search "status:open"
 # Search only Fuchsia issues
 buganize -t fuchsia search "status:open"
 
-# Search ANGLE issues
-buganize -t angle search "status:open"
+# Search across Chromium and Fuchsia
+buganize -t chromium -t fuchsia search "status:open"
+
+# Search ANGLE and Skia issues
+buganize -t angle -t skia search "status:open"
 ```
 
 To list all available trackers and their IDs:

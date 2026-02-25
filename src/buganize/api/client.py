@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import random
 import typing as t
+import warnings
 
 import httpx
-from httpx import QueryParams
 
 from .parser import (
     parse_batch_response,
@@ -85,20 +85,25 @@ class Buganize:
         async with Buganize() as client:
             result = await client.search("priority:p1")
 
-    :param tracker: Tracker to query. Accepts a name (e.g. ``"chromium"``)
-        or a numeric ID string (e.g. ``"157"``). Names are resolved via
-        ``TRACKER_NAMES``. Defaults to None (search all public trackers).
+    :param trackers: Trackers to query. Accepts names (e.g. ``["chromium"]``)
+        or numeric ID strings (e.g. ``["157"]``). Names are resolved via
+        ``TRACKER_NAMES``. Pass multiple to search across specific trackers.
+        Defaults to None (search all public trackers).
     :param timeout: HTTP request timeout in seconds. Defaults to 30.
     """
 
     def __init__(
-            self,
-            tracker: t.Optional[str] = None,
-            timeout: float = 30.0,
+        self,
+        trackers: t.Optional[list[str | int]] = None,
+        timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
-        self.tracker_id, _ = TRACKER_NAMES.get(tracker, (tracker, None))
+        self.tracker_ids: t.Optional[list[str]] = None
+        if trackers:
+            self.tracker_ids = [
+                TRACKER_NAMES.get(name, (name, None))[0] for name in trackers
+            ]
 
         self._http = httpx.AsyncClient(
             headers={
@@ -120,10 +125,10 @@ class Buganize:
         await self.close()
 
     async def search(
-            self,
-            query: str,
-            page_size: int = 50,
-            page_token: t.Optional[str] = None,
+        self,
+        query: str,
+        page_size: int = 50,
+        page_token: t.Optional[str] = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -141,7 +146,7 @@ class Buganize:
             if page_token
             else [query, None, page_size]
         )
-        tracker_filter = [self.tracker_id] if self.tracker_id else None
+        tracker_filter = self.tracker_ids if self.tracker_ids else None
         request_body: list = [
             None,
             None,
@@ -155,7 +160,9 @@ class Buganize:
 
         response: Response = await self._http.post(url, json=request_body)
         response.raise_for_status()
-        return parse_search_response(raw_text=response.text, query=query, page_size=page_size)
+        return parse_search_response(
+            raw_text=response.text, query=query, page_size=page_size
+        )
 
     async def next_page(self, result: SearchResult) -> t.Optional[SearchResult]:
         """
@@ -178,18 +185,32 @@ class Buganize:
         """
         Fetch a single issue by its numeric ID.
 
+        .. deprecated::
+            This method does not return the issue body/description
+            (``TOP[43]`` is always ``None``). Use :meth:`issues` with a
+            single-element list instead::
+
+                issues = await client.issues([issue_id])
+                issue_with_body = issues[0]
+
         :param issue_id: The issue ID (e.g. 40060244).
-        :return: The issue with all available fields populated.
+        :return: The issue with all available fields populated (except ``body``).
         """
+        # FIXME: getIssue does not populate TOP[43] (issue body/description).
+        # Use the batch endpoint (client.issues([id])) if the body is needed.
+        warnings.warn(
+            "issue() is deprecated and may be removed in a future version. "
+            "Use issues([issue_id])[0] instead, which also returns the issue body.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         request_body: list = [issue_id, 1, 1]
         url: str = f"{self.base_endpoint}/issues/{issue_id}/getIssue"
 
-        response: Response = await self._http.post(
-            url,
-            json=request_body,
-            params=QueryParams({"currentTrackerId": self.tracker_id}),
-        )
+        # FIXME: currentTrackerId appears unnecessary — issue ID alone resolves correctly.
+        # params=QueryParams({"currentTrackerId": self.tracker_ids[0] if self.tracker_ids else None}),
+        response: Response = await self._http.post(url=url, json=request_body)
 
         response.raise_for_status()
         return parse_issue_detail_response(raw_text=response.text)
@@ -221,9 +242,9 @@ class Buganize:
         """
 
         url: str = f"{self.base_endpoint}/issues/{issue_id}/updates"
-        response: Response = await self._http.post(
-            url, json=[issue_id], params=QueryParams({"currentTrackerId": self.tracker_id})
-        )
+        # FIXME: currentTrackerId appears unnecessary — issue ID alone resolves correctly.
+        # params=QueryParams({"currentTrackerId": self.tracker_ids[0] if self.tracker_ids else None}),
+        response: Response = await self._http.post(url=url, json=[issue_id])
         response.raise_for_status()
 
         return parse_updates_response(raw_text=response.text)

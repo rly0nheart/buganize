@@ -114,7 +114,7 @@ component `166797` ("Public Trackers"). Using `tracker_id=None` in searches
 queries all public trackers, including ones without their own tracker ID
 (Android, YouTube, Cloud, etc.).
 
-Tracker IDs are not sequential. These were found by scanning IDs 1-800.
+Tracker IDs are not sequential. These were found by scanning IDs 1-3000.
 
 | Tracker ID | Name         | Root Component | Public URL                               |
 |------------|--------------|----------------|------------------------------------------|
@@ -161,7 +161,7 @@ POST /action/issues/list
 
 | Position | Field          | Type             | Description                             |
 |----------|----------------|------------------|-----------------------------------------|
-| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `null` for all  |
+| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all  |
 | `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)     |
 | `[6][1]` | unknown        | `null`           | Always `null`                           |
 | `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250   |
@@ -227,6 +227,10 @@ POST /action/issues/{issue_id}/getIssue?currentTrackerId={tracker_id}
 
 The two `1` values appear to be flags (possibly "include details" and
 "include custom fields"). Their exact meaning is unknown.
+
+> **Note:** This endpoint does **not** populate `TOP[43]` (issue
+> body/description) — it is always `null`. Use the batch endpoint
+> instead if you need the description.
 
 ---
 
@@ -474,13 +478,31 @@ format is used across search, get, and batch responses.
 | `[37]` | relationship_graph | `list`               | Relationship data: `[[this_issue, [[blocked_issue]]]]`                     |
 | `[40]` | links              | `list`               | URLs extracted from issue body: `[[[url], null, type_int]]`                |
 | `[41]` | tracker_id         | `int \| null`        | Tracker ID (e.g. `157` for Chromium)                                       |
-| `[43]` | body               | `str \| null`        | Issue description body, **only in batch/detail responses**                 |
+| `[43]` | body               | `list \| null`       | Issue description entry, **only in batch/detail responses** (see below)    |
 | `[46]` | views              | `list \| null`       | View counts as `[24h, 7d, 30d]`. Empty `[]` means 0 views                  |
 | `[47]` | last_modifier      | user array           | Last person to modify the issue (index may be 46 in some response shapes)  |
 
 > Search response issues have 47 elements (some fields are absent compared
 > to detail/batch responses). The `last_modifier` index may shift to `[46]`
 > in search results.
+
+#### Body Entry (`TOP[43]`)
+
+The body/description is structured like a comment entry, not a plain string.
+It is `null` in search responses and only populated in batch/detail responses.
+
+| Index | Field     | Type            | Notes                                      |
+|-------|-----------|-----------------|--------------------------------------------|
+| `[0]` | text      | `str`           | Plain text description (may contain markdown) |
+| `[1]` | (unknown) | `null`          | Always `null`                              |
+| `[2]` | author    | user array      | Who wrote the description                  |
+| `[3]` | timestamp | `[secs, nanos]` | When the description was written           |
+| `[4]` | (unknown) | `list`          | Always `[]`                                |
+| `[5]` | issue_id  | `int`           | Parent issue ID                            |
+| `[6]` | sequence  | `int`           | Always `1`                                 |
+
+The entry also contains an HTML-rendered version of the description deeper
+in the array, with Google redirect wrappers on all links.
 
 ### Details Array (32 elements)
 
@@ -830,8 +852,9 @@ See [Get Component](#get-component) for the full response structure.
    are at `TOP[36]` instead.
 
 8. **`TOP[43]` (issue body)** is only populated in **batch/detail
-   responses**, not in search results. If you need the description, use
-   batch fetch or the single-issue endpoint.
+   responses**, not in search results. It is a comment-like array, not
+   a plain string — the text is at `TOP[43][0]`. If you need the
+   description, use batch fetch or the single-issue endpoint.
 
 9. **`TOP[46]` (view counts)** contains `[24h_views, 7d_views, 30d_views]`.
    An empty `[]` means 0 views.

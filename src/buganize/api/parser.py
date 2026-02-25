@@ -284,6 +284,8 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     comment_count = _safe_get(raw_entry, 11, default=0) or 0
     owner_array = _safe_get(raw_entry, 13)
     blocking_ids_array = _safe_get(raw_entry, 36)
+    body_array = _safe_get(raw_entry, 43)
+    body = body_array[0] if isinstance(body_array, list) and body_array else None
     tracker_id = _safe_get(raw_entry, 41)
     views_array = _safe_get(raw_entry, 46, default=[]) or []
     last_modifier_array = _safe_get(raw_entry, 47)
@@ -390,6 +392,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         verified_at=_parse_timestamp(verified_timestamp),
         comment_count=comment_count,
         star_count=star_count,
+        body=body,
         tracker_id=tracker_id,
         last_modifier=_parse_email(last_modifier_array),
         hotlist_ids=_parse_int_list(hotlist_ids_array),

@@ -200,6 +200,7 @@ class Issue:
         verified_at: When the fix was verified (UTC).
         comment_count: Total number of comments.
         star_count: Number of stars (watchers/votes).
+        body: Issue description text. Only populated in batch/detail responses, not in search results.
         tracker_id: Tracker ID (e.g. 157 for Chromium, 183 for Fuchsia).
         last_modifier: Email of the last person to modify the issue.
         hotlist_ids: IDs of hotlists this issue belongs to.
@@ -250,6 +251,7 @@ class Issue:
     verified_at: t.Optional[datetime] = None
     comment_count: int = 0
     star_count: int = 0
+    body: t.Optional[str] = None
     tracker_id: t.Optional[int] = None
     last_modifier: t.Optional[str] = None
     hotlist_ids: list[int] = field(default_factory=list)

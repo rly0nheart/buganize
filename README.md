@@ -2,7 +2,7 @@
 <img alt="logo" src="https://www.gstatic.com/buganizer/img/v0/logo.svg" width="150" height="150">
 <br>
 <br>
-<strong>Unofficial Python client for the Google Issue Tracker.</strong>
+<strong>Unofficial Python client for the Google Issue Tracking system (Buganizer)</strong>
 </p>
 
 ## Installation
