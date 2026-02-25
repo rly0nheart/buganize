@@ -4,8 +4,6 @@ Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
 browser traffic with BurpSuite and mitmproxy. There is no official documentation.
 
----
-
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -45,8 +43,6 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
 17. [Limitations](#limitations)
 18. [Debugging Tips](#debugging-tips)
 
----
-
 ## Overview
 
 The Google Issue Tracker at `issuetracker.google.com` has no documented public API. The web frontend talks to a set of
@@ -61,8 +57,6 @@ have their own internal structure.
 
 No cookies or tokens are needed for reading public issues. The only required headers are `Content-Type`, `Origin`,
 `Referer`, and a browser-like `User-Agent`.
-
----
 
 ## Base URL & Headers
 
@@ -85,8 +79,6 @@ return 400.
 
 No authentication is required for public issues.
 
----
-
 ## Anti-XSSI Prefix
 
 **Every** response body is prefixed with:
@@ -104,8 +96,6 @@ protection.
 clean = raw_text.removeprefix(")]}'\\n")
 data = json.loads(clean)
 ```
-
----
 
 ## Known Trackers
 
@@ -135,8 +125,6 @@ Tracker IDs are not sequential. These were found by scanning IDs 1-3000.
 
 There is no "list all trackers" endpoint. You must know the tracker ID in advance.
 
----
-
 ## Endpoints
 
 ### Search Issues
@@ -159,13 +147,13 @@ POST /action/issues/list
 ]
 ```
 
-| Position | Field          | Type             | Description                             |
-|----------|----------------|------------------|-----------------------------------------|
-| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all  |
-| `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)     |
-| `[6][1]` | unknown        | `null`           | Always `null`                           |
-| `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250   |
-| `[6][3]` | page_token     | `str \| omitted` | Pagination token from previous response |
+| Position | Field          | Type             | Description                                                           |
+|----------|----------------|------------------|-----------------------------------------------------------------------|
+| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all |
+| `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)                                   |
+| `[6][1]` | unknown        | `null`           | Always `null`                                                         |
+| `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250                                 |
+| `[6][3]` | page_token     | `str \| omitted` | Pagination token from previous response                               |
 
 **Example — search all trackers:**
 
@@ -206,8 +194,6 @@ POST /action/issues/list
 ]
 ```
 
----
-
 ### Get Single Issue
 
 ```
@@ -231,8 +217,6 @@ The two `1` values appear to be flags (possibly "include details" and
 > **Note:** This endpoint does **not** populate `TOP[43]` (issue
 > body/description) — it is always `null`. Use the batch endpoint
 > instead if you need the description.
-
----
 
 ### Batch Get Issues
 
@@ -261,8 +245,6 @@ POST /action/issues/batch
 | `[3][1]` | flag_1    | `int`       | Always `2` (purpose unknown) |
 | `[3][2]` | flag_2    | `int`       | Always `2` (purpose unknown) |
 
----
-
 ### List Issue Updates
 
 ```
@@ -280,8 +262,6 @@ POST /action/issues/{issue_id}/updates?currentTrackerId={tracker_id}
 
 Returns all updates (comments + field changes) in **reverse chronological
 order** (newest first).
-
----
 
 ### Get Component
 
@@ -303,8 +283,6 @@ The component data is inside a nested array at `data[0][28]` (22 elements):
 | `[6][2]` | custom_field_defs   | `list`      | Custom field definitions for this component's tracker |
 | `[19]`   | tracker_id          | `int`       | Tracker this component belongs to                     |
 
----
-
 ### Batch Get Components
 
 ```
@@ -317,8 +295,6 @@ No request body. Pass component IDs as repeated `id` query parameters.
 
 Each component in the response has the same inner structure at index `[28]`
 as the single component endpoint.
-
----
 
 ### Get Tracker
 
@@ -340,8 +316,6 @@ The tracker data is inside a nested array at `data[0][9]` (12 elements):
 | `[8]`  | public_url        | `str`       | Public vanity URL (e.g. `https://issues.chromium.org`)     |
 | `[10]` | slug              | `str\|null` | URL slug (e.g. `"fuchsia"`) or `null`                      |
 
----
-
 ### Get Hotlist
 
 ```
@@ -361,8 +335,6 @@ The hotlist data is at `data[0][18]` (10 elements):
 | `[7]` | modified_at | `[secs, nanos]` | When the hotlist was modified |
 | `[8]` | admins      | `list`          | Admin user arrays             |
 
----
-
 ### Batch Get Hotlists
 
 ```
@@ -372,8 +344,6 @@ GET /action/hotlists?id=X&id=Y
 No request body. Pass hotlist IDs as repeated `id` query parameters.
 
 **Response type:** `b.ListHotlistsResponse`
-
----
 
 ### List Issue Relationships
 
@@ -391,8 +361,6 @@ blocking/blocked-by relationships.
 
 Note that "blocking" issue IDs are available directly on the issue array at
 `TOP[36]`, but "blocked by" data is only available through this endpoint.
-
----
 
 ## Response Shapes
 
@@ -447,8 +415,6 @@ data[0][1][1] = next page token
 data[0][1][2] = total update count
 ```
 
----
-
 ## Issue Array (48 elements)
 
 Every endpoint produces issues as 48-element positional arrays. The same
@@ -491,15 +457,15 @@ format is used across search, get, and batch responses.
 The body/description is structured like a comment entry, not a plain string.
 It is `null` in search responses and only populated in batch/detail responses.
 
-| Index | Field     | Type            | Notes                                      |
-|-------|-----------|-----------------|--------------------------------------------|
+| Index | Field     | Type            | Notes                                         |
+|-------|-----------|-----------------|-----------------------------------------------|
 | `[0]` | text      | `str`           | Plain text description (may contain markdown) |
-| `[1]` | (unknown) | `null`          | Always `null`                              |
-| `[2]` | author    | user array      | Who wrote the description                  |
-| `[3]` | timestamp | `[secs, nanos]` | When the description was written           |
-| `[4]` | (unknown) | `list`          | Always `[]`                                |
-| `[5]` | issue_id  | `int`           | Parent issue ID                            |
-| `[6]` | sequence  | `int`           | Always `1`                                 |
+| `[1]` | (unknown) | `null`          | Always `null`                                 |
+| `[2]` | author    | user array      | Who wrote the description                     |
+| `[3]` | timestamp | `[secs, nanos]` | When the description was written              |
+| `[4]` | (unknown) | `list`          | Always `[]`                                   |
+| `[5]` | issue_id  | `int`           | Parent issue ID                               |
+| `[6]` | sequence  | `int`           | Always `1`                                    |
 
 The entry also contains an HTML-rendered version of the description deeper
 in the array, with Google redirect wrappers on all links.
@@ -531,8 +497,6 @@ metadata.
 | `[21]` | duplicate_issue_ids | `list[int]`         | IDs of issues marked as duplicates of this one                                                      |
 | `[30]` | collaborators       | `list[user_array]`  | Collaborator users, same format as CCs. Only present on some issues                                 |
 | `[31]` | issue_access_level  | `list`              | Always `[1]`, possibly default access level                                                         |
-
----
 
 ## Custom Fields
 
@@ -594,8 +558,6 @@ Other trackers will have different field IDs.
 Unrecognized field IDs are stored as `field_{id}` in the catch-all
 `custom_fields` dict.
 
----
-
 ## User Arrays
 
 User/person fields (reporter, owner, verifier, CCs, etc.) are arrays like:
@@ -614,8 +576,6 @@ User/person fields (reporter, owner, verifier, CCs, etc.) are arrays like:
 The email address is the **first string element** in the array. The numeric
 value after it may indicate user type or role. The trailing list may contain
 additional profile data.
-
----
 
 ## Timestamps
 
@@ -636,8 +596,6 @@ Convert to `datetime`:
 ```python
 datetime.fromtimestamp(seconds + nanos / 1e9, tz=timezone.utc)
 ```
-
----
 
 ## Enums
 
@@ -693,8 +651,6 @@ issues where severity may be S0 while priority is P2.
 | 5     | PROCESS          |
 | 6     | VULNERABILITY    |
 
----
-
 ## Update Entry (10 elements)
 
 Updates are returned from the `/updates` endpoint in **reverse chronological
@@ -713,8 +669,6 @@ order** (newest first). Each update is a 10-element array:
 | `[8]` | (unknown)       | —                | —                                                                        |
 | `[9]` | issue_id        | `int`            | The issue this update belongs to                                         |
 
----
-
 ## Comment Array (18 elements)
 
 When an update includes a comment, `update[2]` is an 18-element array:
@@ -728,8 +682,6 @@ When an update includes a comment, `update[2]` is an 18-element array:
 | `[4]` | (unknown)       | —               | —                                                |
 | `[5]` | issue_id        | `int`           | Parent issue ID                                  |
 | `[6]` | sequence_number | `int`           | **0-indexed** comment number (add 1 for display) |
-
----
 
 ## Field Changes
 
@@ -765,8 +717,6 @@ Known field names that appear in changes: `component_id`, `type`, `status`,
 `priority`, `hotlist_ids`, `ccs`, `found_in_versions`. Currently we only
 extract the field name.
 
----
-
 ## Pagination
 
 Search and update responses include pagination:
@@ -778,8 +728,6 @@ Search and update responses include pagination:
 
 To paginate, pass the `page_token` as `query_payload[3]` in the next search
 request. When `page_token` is `null`, you're on the last page.
-
----
 
 ## Component Hierarchy
 
@@ -804,8 +752,6 @@ batch endpoint `GET /action/components?id=X&id=Y`.
 
 See [Get Component](#get-component) for the full response structure.
 
----
-
 ## Limitations
 
 - This is an undocumented API. It could break if Google changes the response format.
@@ -816,8 +762,6 @@ See [Get Component](#get-component) for the full response structure.
   field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
 - Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
 - The batch endpoint may not return issues in the same order as the input IDs.
-
----
 
 ## Debugging Tips
 
