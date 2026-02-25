@@ -35,46 +35,6 @@ def resolve_fields(args: argparse.Namespace) -> t.Union[list[str], None]:
     return None
 
 
-def add_export_arg(subparser: argparse.ArgumentParser):
-    """
-    Add the --export flag to a subcommand parser.
-
-    :param subparser: The argparse subparser to add the flag to.
-    """
-
-    subparser.add_argument(
-        "-e",
-        "--export",
-        nargs="+",
-        choices=["csv", "json"],
-        metavar="FORMAT",
-        help="export formats: %(choices)s (one or more)",
-    )
-
-
-def add_fields_args(subparser: argparse.ArgumentParser):
-    """
-    Add the --fields and --all-fields flags to a subcommand parser.
-
-    :param subparser: The argparse subparser to add the flags to.
-    """
-
-    subparser.add_argument(
-        "-f",
-        "--fields",
-        nargs="+",
-        metavar="FIELD",
-        choices=list(EXTRA_FIELDS.keys()),
-        help="extra fields to display. such as: %(choices)s",
-    )
-    subparser.add_argument(
-        "-F",
-        "--all-fields",
-        action="store_true",
-        help="show all available fields",
-    )
-
-
 def parse_args() -> argparse.Namespace:
     """
     Parse command-line arguments and return the populated namespace.
@@ -91,9 +51,28 @@ def parse_args() -> argparse.Namespace:
         "-t",
         "--tracker",
         action="append",
-        default=None,
         choices=TRACKER_NAMES.keys(),
         help="tracker name (repeatable). Defaults to all",
+    )
+    parser.add_argument(
+        "-f",
+        "--fields",
+        action="append",
+        choices=list(EXTRA_FIELDS.keys()),
+        help="extra field to display (repeatable)",
+    )
+    parser.add_argument(
+        "-F",
+        "--all-fields",
+        action="store_true",
+        help="show all available fields",
+    )
+    parser.add_argument(
+        "-e",
+        "--export",
+        action="append",
+        choices=["csv", "json"],
+        help="export format (repeatable)",
     )
     parser.add_argument(
         "--debug",
@@ -134,28 +113,22 @@ def parse_args() -> argparse.Namespace:
         metavar="N",
         help="total results to fetch, paginating as needed",
     )
-    add_fields_args(subparser=search_parser)
-    add_export_arg(subparser=search_parser)
+
     search_parser.set_defaults(func=cmd_search)
 
     # get
     issue_parser = subparsers.add_parser("issue", help="get a single issue")
     issue_parser.add_argument("issue_id", type=int, help="issue ID")
-    add_fields_args(subparser=issue_parser)
-    add_export_arg(subparser=issue_parser)
     issue_parser.set_defaults(func=cmd_issue)
 
     # batch
     issues_parser = subparsers.add_parser("issues", help="batch get issues")
     issues_parser.add_argument("issue_ids", type=int, nargs="+", help="issue IDs")
-    add_fields_args(subparser=issues_parser)
-    add_export_arg(subparser=issues_parser)
     issues_parser.set_defaults(func=cmd_issues)
 
     # comments
     comments_parser = subparsers.add_parser("comments", help="get comments on an issue")
     comments_parser.add_argument("issue_id", type=int, help="issue ID")
-    add_export_arg(subparser=comments_parser)
     comments_parser.set_defaults(func=cmd_comments)
 
     # trackers
@@ -337,7 +310,8 @@ def start():
     start_time = datetime.now()
     try:
         console.log(
-            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} (w/ tracker{'s' if args.tracker and len(args.tracker) > 1 else ''}: [italic]"
+            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} "
+            f"(w/ tracker{'s' if not args.tracker or len(args.tracker) > 1 else ''}: [italic]"
             f"{', '.join(args.tracker) if args.tracker else 'all'}"
             f") at {datetime.now().strftime('%x %X')}"
         )

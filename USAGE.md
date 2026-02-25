@@ -207,18 +207,19 @@ buganize comments 486077869
 
 ### Extra fields
 
-By default, the table output only shows ID, Status, Priority, and Title. You can show additional columns:
+By default, the table output only shows ID, Status, Priority, and Title. You can show additional columns with
+`-f/--fields` (repeatable) or `-F/--all-fields`. These are global options that work with any subcommand:
 
 ```bash
-# Show specific extra fields
-buganize search "status:open" -f owner os milestone
+# Show specific extra fields (repeat -f for each)
+buganize -f owner -f os -f milestone search "status:open"
 
 # Show all available fields
-buganize search "status:open" -F
+buganize -F search "status:open"
 
 # Works with issue and issues too
-buganize issue 486077869 --fields cve tags labels
-buganize issue 486077869 --all-fields
+buganize -f cve -f tags -f labels issue 486077869
+buganize -F issue 486077869
 ```
 
 Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component`, `tags`, `ancestor_tags`, `labels`,
@@ -229,15 +230,15 @@ Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component
 
 ### Export
 
-All commands support `-e/--export` for exporting to CSV or JSON files. Exported files are named with a timestamp (e.g.
-`buganize-20260223_012345.csv`):
+All commands support `-e/--export` (repeatable) for exporting to CSV or JSON files. Exported files are named with a
+timestamp (e.g. `buganize-20260223_012345.csv`):
 
 ```bash
-buganize search "status:open" -n 50 -e csv
-buganize issue 486077869 -e json
+buganize -e csv search "status:open" -n 50
+buganize -e json issue 486077869
 
 # Multiple formats in one command
-buganize search "status:open" -e csv json
+buganize -e csv -e json search "status:open"
 ```
 
 ### Debug logging
