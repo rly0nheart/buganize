@@ -5,10 +5,12 @@ import asyncio
 import logging
 import sys
 import typing as t
+from asyncio import Task
 from datetime import datetime
 
 from rich.logging import RichHandler
-from update_checker import UpdateChecker
+
+from .update_checker import update_check
 
 if t.TYPE_CHECKING:
     from rich.status import Status
@@ -135,20 +137,6 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("trackers", help="list available trackers")
 
     return parser.parse_args()
-
-
-def check_updates(status: Status):
-    """
-    Check PyPI for a newer version of the package.
-
-    :param status: Rich status spinner for progress updates.
-    """
-
-    status.update("[dim]Checking for updates…[/dim]")
-    checker = UpdateChecker()
-    result = checker.check(package_name=__pkg__, package_version=__version__)
-    if result:
-        console.print(f"[bold blue]*[/bold blue] {result}")
 
 
 async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status):
@@ -280,12 +268,21 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     """
     Create a single client and dispatch to the chosen subcommand.
 
+    Runs the update check concurrently with the main command so it adds
+    no extra latency.
+
     :param args: Parsed arguments with ``.func`` set to the subcommand handler.
     :param status: Rich status spinner for progress updates.
     """
 
+    update_checker_task: Task = asyncio.create_task(
+        update_check(package_name=__pkg__, package_version=__version__)
+    )
+
     async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
         await args.func(client=client, args=args, status=status)
+
+    await update_checker_task
 
 
 def start():
@@ -316,7 +313,6 @@ def start():
             f") at {datetime.now().strftime('%x %X')}"
         )
         with console.status("Initialising") as status:
-            check_updates(status=status)
             asyncio.run(dispatch_client(args=args, status=status))
     except KeyboardInterrupt:
         console.log(
