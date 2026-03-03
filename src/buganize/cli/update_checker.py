@@ -1,7 +1,3 @@
-"""
-Module that checks if there is an updated version of a package available.
-"""
-
 import os
 import pickle
 import re
@@ -72,7 +68,7 @@ def cache_results(function: t.Callable) -> t.Callable:
         obj: UpdateChecker,
         package_name: str,
         package_version: str,
-    ) -> t.Union[UpdateResult, None]:
+    ) -> UpdateResult | None:
         """
         Return cached results if available.
 
@@ -158,7 +154,7 @@ class UpdateResult:
         package: str,
         running: str,
         available: str,
-        release_date: t.Union[str, None],
+        release_date: str | None,
     ):
         """
         Initialise an UpdateResult instance.
@@ -212,7 +208,7 @@ class UpdateChecker:
     @cache_results
     async def check(
         self, package_name: str, package_version: str
-    ) -> t.Union[UpdateResult, None]:
+    ) -> UpdateResult | None:
         """
         Check whether a newer version of the package is available.
 

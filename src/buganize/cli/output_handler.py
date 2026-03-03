@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import csv
 import json
 import typing as t
@@ -150,12 +148,12 @@ class Format:
     :param items: List of :class:`Issue` or :class:`Comment` objects.
     """
 
-    def __init__(self, items: t.Union[list[Issue], list[Comment]]):
+    def __init__(self, items: list[Issue] | list[Comment]):
         self.items = items
 
     def to_rows(
         self,
-        fields: t.Optional[list[str]] = None,
+        fields: list[str] | None = None,
     ) -> list[dict[str, t.Any]]:
         """
         Convert the items into a list of row dicts.
@@ -185,9 +183,7 @@ class Print:
         a single issue, a list of comments, or the ``TRACKER_NAMES`` dict.
     """
 
-    def __init__(
-        self, data: t.Union[list[Issue], list[Comment], Issue, dict[str, tuple]]
-    ):
+    def __init__(self, data: list[Issue] | list[Comment] | Issue | dict[str, tuple]):
         self.data = data
 
     @staticmethod
@@ -209,7 +205,7 @@ class Print:
 
         return table
 
-    def print(self, fields: t.Optional[list[str]] = None):
+    def print(self, fields: list[str] | None = None):
         """
         Print data as a Rich table, dispatching based on data type.
 
@@ -230,7 +226,7 @@ class Print:
         elif all(isinstance(item, Comment) for item in self.data):
             self.comments()
 
-    def issue(self, fields: t.Optional[list[str]] = None):
+    def issue(self, fields: list[str] | None = None):
         """
         Print a single issue with full detail.
 
@@ -376,7 +372,7 @@ class Print:
             table.add_row(tid, name, url)
         console.print(table)
 
-    def issues(self, fields: t.Optional[list[str]] = None):
+    def issues(self, fields: list[str] | None = None):
         """
         Print issues as a Rich table.
 
@@ -384,7 +380,9 @@ class Print:
         """
 
         extra = fields or []
-        extra_columns = [(_column_header(f), {}) for f in extra if f in EXTRA_FIELDS]
+        extra_columns = [
+            (_column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
+        ]
         table = self._make_table(
             columns=[
                 ("#", {"justify": "right"}),
@@ -457,8 +455,8 @@ class Convert:
 
     def __init__(
         self,
-        items: t.Union[list[Issue], list[Comment]],
-        fields: t.Optional[list[str]] = None,
+        items: list[Issue] | list[Comment],
+        fields: list[str] | None = None,
     ):
         self.items = items
         self.fields = fields
@@ -482,7 +480,7 @@ class Convert:
 
         return []
 
-    def issues(self, fields: t.Optional[list[str]] = None) -> list[dict[str, t.Any]]:
+    def issues(self, fields: list[str] | None = None) -> list[dict[str, t.Any]]:
         """
         Build a list of row dicts from issues.
 
@@ -505,7 +503,7 @@ class Convert:
             for field_name in fields or []:
                 if field_name in EXTRA_FIELDS:
                     getter = EXTRA_FIELDS[field_name]
-                    row[_column_header(field_name)] = getter(issue) or ""
+                    row[_column_header(key=field_name)] = getter(issue) or ""
             rows.append(row)
         return rows
 

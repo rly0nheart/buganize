@@ -13,7 +13,7 @@ from .api.models import (
     Severity,
     Status,
 )
-from .cli.output import EXTRA_FIELDS
+from .cli.output_handler import EXTRA_FIELDS
 
 __all__ = [
     "CUSTOM_FIELD_IDS",

@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import random
-import typing as t
+import typing
 import warnings
 
 import httpx
@@ -13,7 +11,7 @@ from .parser import (
     parse_updates_response,
 )
 
-if t.TYPE_CHECKING:
+if typing.TYPE_CHECKING:
     from httpx import Response
     from .models import Comment, Issue, IssueUpdatesResult, SearchResult
 
@@ -94,12 +92,12 @@ class Buganize:
 
     def __init__(
         self,
-        trackers: t.Optional[list[str | int]] = None,
+        trackers: list[str | int] = None,
         timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
-        self.tracker_ids: t.Optional[list[str]] = None
+        self.tracker_ids: list[str] | None = None
         if trackers:
             self.tracker_ids = [
                 TRACKER_NAMES.get(name, (name, None))[0] for name in trackers
@@ -128,7 +126,7 @@ class Buganize:
         self,
         query: str,
         page_size: int = 50,
-        page_token: t.Optional[str] = None,
+        page_token: str | None = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -164,7 +162,7 @@ class Buganize:
             raw_text=response.text, query=query, page_size=page_size
         )
 
-    async def next_page(self, result: SearchResult) -> t.Optional[SearchResult]:
+    async def next_page(self, result: SearchResult) -> SearchResult | None:
         """
         Fetch the next page of a search result.
 

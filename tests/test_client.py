@@ -60,37 +60,37 @@ class TestGetIssue:
         search = await client.search("status:open", page_size=1)
         issue_id = search.issues[0].id
 
-        issue = await client.issue(issue_id)
+        issue = await client.issues(issue_ids=[issue_id])
 
-        assert isinstance(issue, Issue)
-        assert issue.id == issue_id
+        assert isinstance(issue[0], Issue)
+        assert issue[0].id == issue_id
 
     async def test_issue_has_all_basic_fields(self, client):
         search = await client.search("status:open", page_size=1)
-        issue = await client.issue(search.issues[0].id)
+        issue = await client.issues(issue_ids=[search.issues[0].id])
 
-        assert isinstance(issue.id, int)
-        assert isinstance(issue.title, str)
-        assert len(issue.title) > 0
-        assert isinstance(issue.status, Status)
-        assert isinstance(issue.priority, Priority)
-        assert issue.created_at is not None
-        assert issue.modified_at is not None
-        assert issue.url == f"https://issuetracker.google.com/issues/{issue.id}"
+        assert isinstance(issue[0].id, int)
+        assert isinstance(issue[0].title, str)
+        assert len(issue[0].title) > 0
+        assert isinstance(issue[0].status, Status)
+        assert isinstance(issue[0].priority, Priority)
+        assert issue[0].created_at is not None
+        assert issue[0].modified_at is not None
+        assert issue[0].url == f"https://issuetracker.google.com/issues/{issue[0].id}"
 
     async def test_issue_has_reporter(self, client):
         search = await client.search("status:open", page_size=1)
-        issue = await client.issue(search.issues[0].id)
+        issue = await client.issues(issue_ids=[search.issues[0].id])
 
-        assert issue.reporter is not None
-        assert "@" in issue.reporter
+        assert issue[0].reporter is not None
+        assert "@" in issue[0].reporter
 
     async def test_timestamps_are_sane(self, client):
         search = await client.search("status:open", page_size=1)
-        issue = await client.issue(search.issues[0].id)
+        issue = await client.issues(issue_ids=[search.issues[0].id])
 
-        assert issue.created_at.year >= 2008  # Chromium tracker existed since ~2008
-        assert issue.modified_at >= issue.created_at
+        assert issue[0].created_at.year >= 2008  # Chromium tracker existed since ~2008
+        assert issue[0].modified_at >= issue[0].created_at
 
 
 class TestBatchGetIssues:

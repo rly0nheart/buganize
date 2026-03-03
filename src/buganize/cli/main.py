@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import logging
@@ -16,13 +14,13 @@ if t.TYPE_CHECKING:
     from rich.status import Status
 
 from ..api.client import Buganize, TRACKER_NAMES
-from ..cli import console, __pkg__, __version__, output
-from ..cli.output import EXTRA_FIELDS
+from ..cli import console, __pkg__, __version__, output_handler
+from ..cli.output_handler import EXTRA_FIELDS
 
 __all__ = ["start"]
 
 
-def resolve_fields(args: argparse.Namespace) -> t.Union[list[str], None]:
+def resolve_fields(args: argparse.Namespace) -> list[str] | None:
     """
     Figure out which extra fields to display based on CLI args.
 
@@ -176,12 +174,12 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     console.log(
         f"[bold green]✔[/bold green] Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
     )
-    output.Print(data=issues).print(fields=fields)
+    output_handler.Print(data=issues).print(fields=fields)
 
     if args.export:
-        output_format = output.Format(items=issues)
+        output_format = output_handler.Format(items=issues)
         rows = output_format.to_rows(fields=fields)
-        output_save = output.Save(rows=rows)
+        output_save = output_handler.Save(rows=rows)
         output_save.save(formats=export_formats)
 
     if result.has_more:
@@ -206,12 +204,12 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     issue = issues[0]
     fields = resolve_fields(args=args)
 
-    output.Print(data=issue).print(fields=fields)
+    output_handler.Print(data=issue).print(fields=fields)
 
     if args.export:
-        output_format = output.Format(items=[issue])
+        output_format = output_handler.Format(items=[issue])
         rows = output_format.to_rows(fields=fields)
-        output_save = output.Save(rows=rows)
+        output_save = output_handler.Save(rows=rows)
         output_save.save(formats=export_formats)
 
 
@@ -230,12 +228,12 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     status.update(f"[dim]Getting issues {issue_ids}…[/]")
     issues = await client.issues(issue_ids=issue_ids)
     fields = resolve_fields(args=args)
-    output.Print(data=issues).print(fields=fields)
+    output_handler.Print(data=issues).print(fields=fields)
 
     if args.export:
-        output_format = output.Format(items=issues)
+        output_format = output_handler.Format(items=issues)
         rows = output_format.to_rows(fields=fields)
-        output_save = output.Save(rows=rows)
+        output_save = output_handler.Save(rows=rows)
         output_save.save(formats=export_formats)
 
 
@@ -255,12 +253,12 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     comments = await client.comments(issue_id=issue_id)
 
     console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
-    output.Print(data=comments).print()
+    output_handler.Print(data=comments).print()
 
     if args.export:
-        output_format = output.Format(items=comments)
+        output_format = output_handler.Format(items=comments)
         rows = output_format.to_rows()
-        output_save = output.Save(rows=rows)
+        output_save = output_handler.Save(rows=rows)
         output_save.save(formats=export_formats)
 
 
@@ -296,7 +294,7 @@ def start():
     args = parse_args()
 
     if args.command == "trackers":
-        output.Print(data=TRACKER_NAMES).trackers()
+        output_handler.Print(data=TRACKER_NAMES).trackers()
         return
 
     logging.basicConfig(

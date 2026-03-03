@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import json
-import typing as t
 from datetime import datetime, timezone
+from typing import Any
 
 from ..api.models import (
     CUSTOM_FIELD_IDS,
@@ -33,7 +31,7 @@ def strip_response_prefix(raw_text: str) -> str:
     return raw_text
 
 
-def parse_json_response(raw_text: str) -> t.Any:
+def parse_json_response(raw_text: str) -> Any:
     """
     Strip the anti-XSSI prefix and parse the JSON body.
 
@@ -44,7 +42,7 @@ def parse_json_response(raw_text: str) -> t.Any:
     return json.loads(strip_response_prefix(raw_text))
 
 
-def _safe_get(array: t.Any, *indices: int, default=None) -> t.Any:
+def _safe_get(array: Any, *indices: int, default=None) -> Any:
     """
     Safely traverse nested arrays/lists by index.
 
@@ -63,7 +61,7 @@ def _safe_get(array: t.Any, *indices: int, default=None) -> t.Any:
     return current
 
 
-def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
+def _parse_timestamp(raw_timestamp: Any) -> datetime | None:
     """
     Parse a [seconds, nanos] timestamp array into a UTC datetime.
 
@@ -85,7 +83,7 @@ def _parse_timestamp(raw_timestamp: t.Any) -> t.Optional[datetime]:
         return None
 
 
-def _parse_email(user_array: t.Any) -> t.Optional[str]:
+def _parse_email(user_array: Any) -> str | None:
     """
     Extract an email address from a user field array.
 
@@ -104,7 +102,7 @@ def _parse_email(user_array: t.Any) -> t.Optional[str]:
     return None
 
 
-def _parse_ccs(raw_ccs: t.Any) -> list[str]:
+def _parse_ccs(raw_ccs: Any) -> list[str]:
     """
     Parse a CC list where each entry is a user array like [null, "email", type].
 
@@ -122,7 +120,7 @@ def _parse_ccs(raw_ccs: t.Any) -> list[str]:
     return emails
 
 
-def _parse_int_list(raw_list: t.Any) -> list[int]:
+def _parse_int_list(raw_list: Any) -> list[int]:
     """
     Extract integers from a list, ignoring non-int values.
 
@@ -135,7 +133,7 @@ def _parse_int_list(raw_list: t.Any) -> list[int]:
     return [item for item in raw_list if isinstance(item, int)]
 
 
-def _parse_custom_field_values(raw_field_entries: t.Any) -> dict[str, t.Any]:
+def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
     """
     Parse custom field value entries from the issue details array at [2][14].
 
@@ -156,7 +154,7 @@ def _parse_custom_field_values(raw_field_entries: t.Any) -> dict[str, t.Any]:
     if not raw_field_entries or not isinstance(raw_field_entries, list):
         return {}
 
-    parsed_fields: dict[str, t.Any] = {}
+    parsed_fields: dict[str, Any] = {}
     for entry in raw_field_entries:
         if not isinstance(entry, list) or len(entry) < 1:
             continue
@@ -307,7 +305,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
             return [part.strip() for part in value.split(",") if part.strip()]
         return []
 
-    def pop_string(key: str) -> t.Optional[str]:
+    def pop_string(key: str) -> str | None:
         """
         Pop a key from custom_fields and return it as a single string.
         """
@@ -321,7 +319,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
             return ", ".join(str(v) for v in value)
         return str(value)
 
-    def pop_float(key: str) -> t.Optional[float]:
+    def pop_float(key: str) -> float | None:
         """
         Pop a key from custom_fields and return it as a float.
         """
@@ -530,7 +528,7 @@ def parse_batch_response(raw_text: str) -> list[Issue]:
     ]
 
 
-def _parse_field_changes(raw_changes: t.Any) -> list[FieldChange]:
+def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     """
     Parse field change entries from an update's changes array.
 
@@ -552,7 +550,7 @@ def _parse_field_changes(raw_changes: t.Any) -> list[FieldChange]:
     return changes
 
 
-def _parse_comment(raw_comment: t.Any, issue_id: int) -> t.Optional[Comment]:
+def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
     """
     Parse a comment body array (18 elements) into a Comment.
 
