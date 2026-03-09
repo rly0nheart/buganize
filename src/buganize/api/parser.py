@@ -97,7 +97,7 @@ def _parse_email(user_array: Any) -> str | None:
     if not user_array or not isinstance(user_array, list):
         return None
     for item in user_array:
-        if isinstance(item, str) and ("@" in item or item):
+        if isinstance(item, str) and "@" in item:
             return item
     return None
 
