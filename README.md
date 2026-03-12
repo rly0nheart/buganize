@@ -11,6 +11,14 @@
 pip install buganize
 ```
 
+### Nix
+
+A `shell.nix` is provided for Nix users:
+
+```shell
+nix-shell
+```
+
 ## Quick start
 
 ```python
