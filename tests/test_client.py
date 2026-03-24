@@ -19,7 +19,13 @@ async def client():
 
 
 class TestSearch:
-    async def test_returns_search_result(self, client):
+    async def test_returns_search_result(self, client: Buganize) -> None:
+        """
+        Verify that a search returns a valid :class:`SearchResult`.
+
+        :param client: Buganize client.
+        """
+
         result = await client.search("status:open", page_size=5)
 
         assert isinstance(result, SearchResult)
@@ -27,7 +33,13 @@ class TestSearch:
         assert len(result.issues) > 0
         assert len(result.issues) <= 5
 
-    async def test_issues_have_basic_fields(self, client):
+    async def test_issues_have_basic_fields(self, client: Buganize) -> None:
+        """
+        Verify that each issue in a search result has the expected fields.
+
+        :param client: Buganize client.
+        """
+
         result = await client.search("status:open", page_size=3)
 
         for issue in result.issues:
@@ -39,14 +51,26 @@ class TestSearch:
             assert isinstance(issue.status, Status)
             assert isinstance(issue.priority, Priority)
 
-    async def test_pagination_token_present(self, client):
+    async def test_pagination_token_present(self, client: Buganize) -> None:
+        """
+        Verify that a paginated search includes a next-page token.
+
+        :param client: Buganize client.
+        """
+
         result = await client.search("status:open", page_size=1)
 
         assert result.has_more is True
         assert result.next_page_token is not None
         assert isinstance(result.next_page_token, str)
 
-    async def test_query_filters_work(self, client):
+    async def test_query_filters_work(self, client: Buganize) -> None:
+        """
+        Verify that component-based query filters return results.
+
+        :param client: Buganize client.
+        """
+
         result = await client.search("component:Blink", page_size=3)
 
         assert isinstance(result, SearchResult)
@@ -56,8 +80,14 @@ class TestSearch:
 
 class TestGetIssue:
     @staticmethod
-    async def _find_accessible_issue(client):
-        """Find an issue that isn't internal/redacted."""
+    async def _find_accessible_issue(client: Buganize) -> Issue:
+        """
+        Find an issue that isn't internal/redacted.
+
+        :param client: Buganize client.
+        :returns: The first accessible :class:`Issue`.
+        """
+
         search = await client.search("status:open", page_size=10)
         for candidate in search.issues:
             issues = await client.issues(issue_ids=[candidate.id])
@@ -65,13 +95,25 @@ class TestGetIssue:
                 return issues[0]
         pytest.skip("All candidate issues are internal (empty response)")
 
-    async def test_returns_issue(self, client):
+    async def test_returns_issue(self, client: Buganize) -> None:
+        """
+        Verify that fetching a single issue returns a valid :class:`Issue`.
+
+        :param client: Buganize client.
+        """
+
         issue = await self._find_accessible_issue(client)
 
         assert isinstance(issue, Issue)
         assert isinstance(issue.id, int)
 
-    async def test_issue_has_all_basic_fields(self, client):
+    async def test_issue_has_all_basic_fields(self, client: Buganize) -> None:
+        """
+        Verify that a fetched issue has all expected basic fields populated.
+
+        :param client: Buganize client.
+        """
+
         issue = await self._find_accessible_issue(client)
 
         assert isinstance(issue.id, int)
@@ -83,13 +125,25 @@ class TestGetIssue:
         assert issue.modified_at is not None
         assert issue.url == f"https://issuetracker.google.com/issues/{issue.id}"
 
-    async def test_issue_has_reporter(self, client):
+    async def test_issue_has_reporter(self, client: Buganize) -> None:
+        """
+        Verify that the issue has a reporter with a valid email address.
+
+        :param client: Buganize client.
+        """
+
         issue = await self._find_accessible_issue(client)
 
         assert issue.reporter is not None
         assert "@" in issue.reporter
 
-    async def test_timestamps_are_sane(self, client):
+    async def test_timestamps_are_sane(self, client: Buganize) -> None:
+        """
+        Verify that ``created_at`` and ``modified_at`` are reasonable dates.
+
+        :param client: Buganize client.
+        """
+
         issue = await self._find_accessible_issue(client)
 
         assert issue.created_at.year >= 2008  # Chromium tracker existed since ~2008
@@ -97,7 +151,13 @@ class TestGetIssue:
 
 
 class TestBatchGetIssues:
-    async def test_returns_all_requested_issues(self, client):
+    async def test_returns_all_requested_issues(self, client: Buganize) -> None:
+        """
+        Verify that a batch get returns exactly the requested issues.
+
+        :param client: Buganize client.
+        """
+
         # Get some issue IDs first
         search = await client.search("status:open", page_size=3)
         ids = [i.id for i in search.issues]
@@ -108,7 +168,13 @@ class TestBatchGetIssues:
         returned_ids = {i.id for i in issues}
         assert returned_ids == set(ids)
 
-    async def test_batch_issues_have_basic_fields(self, client):
+    async def test_batch_issues_have_basic_fields(self, client: Buganize) -> None:
+        """
+        Verify that batch-fetched issues have all expected basic fields.
+
+        :param client: Buganize client.
+        """
+
         search = await client.search("status:open", page_size=2)
         ids = [i.id for i in search.issues]
 
@@ -123,7 +189,13 @@ class TestBatchGetIssues:
 
 
 class TestGetIssueUpdates:
-    async def test_returns_updates_result(self, client):
+    async def test_returns_updates_result(self, client: Buganize) -> None:
+        """
+        Verify that fetching updates returns a valid :class:`IssueUpdatesResult`.
+
+        :param client: Buganize client.
+        """
+
         # Find an issue that has comments
         search = await client.search("status:fixed", page_size=5)
         # Pick one with comments
@@ -141,7 +213,13 @@ class TestGetIssueUpdates:
         assert result.total_count > 0
         assert len(result.updates) > 0
 
-    async def test_updates_have_authors_and_timestamps(self, client):
+    async def test_updates_have_authors_and_timestamps(self, client: Buganize) -> None:
+        """
+        Verify that each update has an author and a timestamp.
+
+        :param client: Buganize client.
+        """
+
         search = await client.search("status:fixed", page_size=5)
         target = next((i for i in search.issues if i.comment_count > 0), None)
         if target is None:
@@ -156,20 +234,52 @@ class TestGetIssueUpdates:
 
 
 class TestGetComments:
-    async def test_returns_comments_in_chronological_order(self, client):
-        search = await client.search("status:fixed", page_size=10)
-        candidates = [i for i in search.issues if i.comment_count >= 2]
-        if not candidates:
-            pytest.skip("No issue with 2+ comments found")
+    @staticmethod
+    async def _find_public_comments(
+        client: Buganize, min_comments: int = 1
+    ) -> tuple[Issue, list[Comment]]:
+        """
+        Search for a non-internal issue with at least ``min_comments`` visible
+        comments.
 
-        # Skip internal issues (all comments have empty bodies)
+        Internal issues are identified by all comment authors being @google.com
+        — these typically have redacted/empty bodies. The API can also return
+        fewer comments than the issue's ``comment_count`` field suggests, so
+        the actual count is re-checked here.
+
+        :param client: Buganize client.
+        :param min_comments: Minimum number of visible comments required.
+        :returns: A tuple of the matching :class:`Issue` and its :class:`Comment` list.
+        """
+
+        search = await client.search("status:fixed", page_size=10)
+        candidates = [
+            issue for issue in search.issues if issue.comment_count >= min_comments
+        ]
+        if not candidates:
+            pytest.skip(f"No issue with {min_comments}+ comments found")
+
         for candidate in candidates:
             comments = await client.comments(candidate.id)
-            if any(c.body for c in comments):
-                break
-            assert isinstance(candidate.title, str)
-        else:
-            pytest.skip("All candidate issues are internal (redacted comments)")
+            if len(comments) < min_comments:
+                continue
+            if all(
+                comment.author and comment.author.endswith("@google.com")
+                for comment in comments
+            ):
+                continue
+            return candidate, comments
+
+        pytest.skip("All candidate issues are internal (@google.com)")
+
+    async def test_returns_comments_in_chronological_order(self, client: Buganize) -> None:
+        """
+        Verify that comments are returned in chronological order.
+
+        :param client: Buganize client.
+        """
+
+        candidate, comments = await self._find_public_comments(client, min_comments=2)
 
         assert len(comments) >= 2
         for comment in comments:
@@ -183,37 +293,27 @@ class TestGetComments:
             if comments[i].timestamp and comments[i + 1].timestamp:
                 assert comments[i].timestamp <= comments[i + 1].timestamp
 
-    async def test_comments_have_content(self, client):
-        search = await client.search("status:fixed", page_size=10)
-        candidates = [i for i in search.issues if i.comment_count > 0]
-        if not candidates:
-            pytest.skip("No issue with comments found")
+    async def test_comments_have_content(self, client: Buganize) -> None:
+        """
+        Verify that at least one comment has a non-empty body.
 
-        for candidate in candidates:
-            comments = await client.comments(candidate.id)
-            if any(c.body for c in comments):
-                break
-            assert isinstance(candidate.title, str)
-        else:
-            pytest.skip("All candidate issues are internal (redacted comments)")
+        :param client: Buganize client.
+        """
+
+        _, comments = await self._find_public_comments(client)
 
         assert len(comments) > 0
         has_body = any(len(comment.body) > 0 for comment in comments)
         assert has_body
 
-    async def test_comment_authors_are_emails(self, client):
-        search = await client.search("status:fixed", page_size=10)
-        candidates = [i for i in search.issues if i.comment_count > 0]
-        if not candidates:
-            pytest.skip("No issue with comments found")
+    async def test_comment_authors_are_emails(self, client: Buganize) -> None:
+        """
+        Verify that comment authors are valid email addresses.
 
-        for candidate in candidates:
-            comments = await client.comments(candidate.id)
-            if any(c.body for c in comments):
-                break
-            assert isinstance(candidate.title, str)
-        else:
-            pytest.skip("All candidate issues are internal (redacted comments)")
+        :param client: Buganize client.
+        """
+
+        _, comments = await self._find_public_comments(client)
 
         for comment in comments:
             if comment.author:
