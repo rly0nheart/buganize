@@ -4,6 +4,7 @@ import pytest_asyncio
 from buganize.api.client import Buganize
 from buganize.api.models import (
     Comment,
+    CommentsResult,
     Issue,
     IssueUpdatesResult,
     Priority,
@@ -16,6 +17,17 @@ from buganize.api.models import (
 async def client():
     async with Buganize() as buganizer:
         yield buganizer
+
+
+class TestHealthcheck:
+    async def test_is_healthy_returns_true(self, client: Buganize) -> None:
+        """
+        Verify that the issue tracker backend is reachable.
+
+        :param client: Buganize client.
+        """
+
+        assert await client.is_healthy() is True
 
 
 class TestSearch:
@@ -90,9 +102,10 @@ class TestGetIssue:
 
         search = await client.search("status:open", page_size=10)
         for candidate in search.issues:
-            issues = await client.issues(issue_ids=[candidate.id])
-            if issues:
-                return issues[0]
+            try:
+                return await client.issue(candidate.id)
+            except Exception:
+                continue
         pytest.skip("All candidate issues are internal (empty response)")
 
     async def test_returns_issue(self, client: Buganize) -> None:
@@ -148,6 +161,29 @@ class TestGetIssue:
 
         assert issue.created_at.year >= 2008  # Chromium tracker existed since ~2008
         assert issue.modified_at >= issue.created_at
+
+    async def test_issue_has_body(self, client: Buganize) -> None:
+        """
+        Verify that a single issue fetch includes the body/description.
+
+        Some issues (e.g. Android Beta Feedback) have redacted bodies,
+        so we search for a fixed Chromium issue which is more likely
+        to have a visible description.
+
+        :param client: Buganize client.
+        """
+
+        search = await client.search("status:fixed", page_size=10)
+        for candidate in search.issues:
+            try:
+                issue = await client.issue(candidate.id)
+            except Exception:
+                continue
+            if issue.body is not None:
+                assert isinstance(issue.body, str)
+                assert len(issue.body) > 0
+                return
+        pytest.skip("No issue with a visible body found")
 
 
 class TestBatchGetIssues:
@@ -237,7 +273,7 @@ class TestGetComments:
     @staticmethod
     async def _find_public_comments(
         client: Buganize, min_comments: int = 1
-    ) -> tuple[Issue, list[Comment]]:
+    ) -> tuple[Issue, CommentsResult]:
         """
         Search for a non-internal issue with at least ``min_comments`` visible
         comments.
@@ -249,7 +285,7 @@ class TestGetComments:
 
         :param client: Buganize client.
         :param min_comments: Minimum number of visible comments required.
-        :returns: A tuple of the matching :class:`Issue` and its :class:`Comment` list.
+        :returns: A tuple of the matching :class:`Issue` and its :class:`CommentsResult`.
         """
 
         search = await client.search("status:fixed", page_size=10)
@@ -260,38 +296,87 @@ class TestGetComments:
             pytest.skip(f"No issue with {min_comments}+ comments found")
 
         for candidate in candidates:
-            comments = await client.comments(candidate.id)
-            if len(comments) < min_comments:
+            result = await client.comments(candidate.id)
+            if len(result.comments) < min_comments:
                 continue
             if all(
                 comment.author and comment.author.endswith("@google.com")
-                for comment in comments
+                for comment in result.comments
             ):
                 continue
-            return candidate, comments
+            return candidate, result
 
         pytest.skip("All candidate issues are internal (@google.com)")
 
-    async def test_returns_comments_in_chronological_order(self, client: Buganize) -> None:
+    async def test_returns_comments_result(self, client: Buganize) -> None:
         """
-        Verify that comments are returned in chronological order.
+        Verify that comments() returns a CommentsResult with expected fields.
 
         :param client: Buganize client.
         """
 
-        candidate, comments = await self._find_public_comments(client, min_comments=2)
+        _, result = await self._find_public_comments(client)
 
-        assert len(comments) >= 2
-        for comment in comments:
+        assert isinstance(result, CommentsResult)
+        assert result.total_count > 0
+        assert result.total_count == len(result.comments) or result.has_more
+
+    async def test_returns_comments_in_chronological_order(
+        self, client: Buganize
+    ) -> None:
+        """
+        Verify that ASC sort returns comments in chronological order.
+
+        :param client: Buganize client.
+        """
+
+        candidate, result = await self._find_public_comments(client, min_comments=2)
+
+        assert len(result.comments) >= 2
+        for comment in result.comments:
             assert isinstance(comment, Comment)
             assert comment.issue_id == candidate.id
             assert isinstance(comment.comment_number, int)
             assert comment.comment_number >= 1
 
-        # Verify chronological order
-        for i in range(len(comments) - 1):
-            if comments[i].timestamp and comments[i + 1].timestamp:
-                assert comments[i].timestamp <= comments[i + 1].timestamp
+        for i in range(len(result.comments) - 1):
+            if result.comments[i].timestamp and result.comments[i + 1].timestamp:
+                assert result.comments[i].timestamp <= result.comments[i + 1].timestamp
+
+    async def test_desc_sort_reverses_order(self, client: Buganize) -> None:
+        """
+        Verify that DESC sort returns newest comments first.
+
+        :param client: Buganize client.
+        """
+
+        candidate, asc_result = await self._find_public_comments(client, min_comments=2)
+        desc_result = await client.comments(candidate.id, sort_order="DESC")
+
+        asc_seqs = [c.comment_number for c in asc_result.comments]
+        desc_seqs = [c.comment_number for c in desc_result.comments]
+        assert asc_seqs == list(reversed(desc_seqs))
+
+    async def test_pagination(self, client: Buganize) -> None:
+        """
+        Verify that pagination returns subsequent comments and eventually ends.
+
+        :param client: Buganize client.
+        """
+
+        candidate, _ = await self._find_public_comments(client, min_comments=2)
+
+        page1 = await client.comments(candidate.id, page_size=1)
+        assert len(page1.comments) == 1
+        assert page1.has_more
+
+        page2 = await client.comments(
+            candidate.id,
+            page_size=1,
+            page_token=page1.next_page_token,
+        )
+        assert len(page2.comments) == 1
+        assert page1.comments[0].comment_number != page2.comments[0].comment_number
 
     async def test_comments_have_content(self, client: Buganize) -> None:
         """
@@ -300,11 +385,10 @@ class TestGetComments:
         :param client: Buganize client.
         """
 
-        _, comments = await self._find_public_comments(client)
+        _, result = await self._find_public_comments(client)
 
-        assert len(comments) > 0
-        has_body = any(len(comment.body) > 0 for comment in comments)
-        assert has_body
+        assert len(result.comments) > 0
+        assert any(len(comment.body) > 0 for comment in result.comments)
 
     async def test_comment_authors_are_emails(self, client: Buganize) -> None:
         """
@@ -313,8 +397,32 @@ class TestGetComments:
         :param client: Buganize client.
         """
 
-        _, comments = await self._find_public_comments(client)
+        _, result = await self._find_public_comments(client)
 
-        for comment in comments:
+        for comment in result.comments:
             if comment.author:
                 assert "@" in comment.author
+
+    async def test_comment_numbers_are_one_indexed(self, client: Buganize) -> None:
+        """
+        Verify that comment numbers start at 1, not 0.
+
+        :param client: Buganize client.
+        """
+
+        _, result = await self._find_public_comments(client)
+
+        assert result.comments[0].comment_number >= 1
+
+    async def test_total_count_matches_returned(self, client: Buganize) -> None:
+        """
+        Verify that total_count matches the number of comments returned
+        when all comments fit in a single page.
+
+        :param client: Buganize client.
+        """
+
+        _, result = await self._find_public_comments(client)
+
+        if not result.has_more:
+            assert result.total_count == len(result.comments)

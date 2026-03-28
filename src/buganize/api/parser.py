@@ -5,6 +5,7 @@ from typing import Any
 from ..api.models import (
     CUSTOM_FIELD_IDS,
     Comment,
+    CommentsResult,
     FieldChange,
     Issue,
     IssueType,
@@ -645,6 +646,58 @@ def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
 
     return IssueUpdatesResult(
         updates=updates,
+        total_count=total_count,
+        next_page_token=page_token if page_token else None,
+    )
+
+
+def parse_comments_response(raw_text: str) -> CommentsResult:
+    """
+    Parse a ListIssueCommentsResponse.
+
+    Response shape::
+
+        [["b.ListIssueCommentsResponse", [[comment, ...], page_token, total_count]]]
+
+    Each comment is an 18-element array. Unlike the ``/updates`` endpoint,
+    sequence numbers here are **1-indexed** (no ``+1`` adjustment needed).
+
+    :param raw_text: Raw response body from POST /action/issues/{id}/listComments.
+    :return: Parsed comments with pagination info.
+    """
+
+    data = parse_json_response(raw_text)
+
+    response_wrapper = _safe_get(data, 0, default=[])
+    result_block = _safe_get(response_wrapper, 1, default=[])
+
+    raw_comments = _safe_get(result_block, 0, default=[]) or []
+    page_token = _safe_get(result_block, 1)
+    total_count = _safe_get(result_block, 2, default=0) or 0
+
+    comments = []
+    for raw_comment in raw_comments:
+        if not isinstance(raw_comment, list):
+            continue
+
+        comment_text = _safe_get(raw_comment, 0, default="") or ""
+        author_array = _safe_get(raw_comment, 2)
+        timestamp_array = _safe_get(raw_comment, 3)
+        issue_id = _safe_get(raw_comment, 5, default=0) or 0
+        sequence_number = _safe_get(raw_comment, 6, default=1)
+
+        comments.append(
+            Comment(
+                issue_id=issue_id,
+                comment_number=sequence_number,  # already 1-indexed
+                author=_parse_email(author_array),
+                timestamp=_parse_timestamp(timestamp_array),
+                body=comment_text,
+            )
+        )
+
+    return CommentsResult(
+        comments=comments,
         total_count=total_count,
         next_page_token=page_token if page_token else None,
     )

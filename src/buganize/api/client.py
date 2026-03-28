@@ -1,11 +1,11 @@
 import random
 import typing
-import warnings
 
 import httpx
 
 from .parser import (
     parse_batch_response,
+    parse_comments_response,
     parse_issue_detail_response,
     parse_search_response,
     parse_updates_response,
@@ -13,26 +13,30 @@ from .parser import (
 
 if typing.TYPE_CHECKING:
     from httpx import Response
-    from .models import Comment, Issue, IssueUpdatesResult, SearchResult
+    from .models import CommentsResult, Issue, IssueUpdatesResult, SearchResult
 
-__all__ = ["Buganize", "TRACKER_NAMES"]
+__all__ = ["Buganize", "TRACKERS"]
 
-TRACKER_NAMES: dict[str, tuple[str, str]] = {
-    "pigweed": ("1", "https://issues.pigweed.dev"),
-    "gerrit": ("27", "https://issues.gerritcodereview.com"),
-    "git": ("53", "https://git.issues.gerritcodereview.com"),
-    "skia": ("79", "https://issues.skia.org"),
-    "webrtc": ("105", "https://issues.webrtc.org"),
-    "libyuv": ("131", "https://libyuv.issues.chromium.org"),
-    "chromium": ("157", "https://issues.chromium.org"),
-    "fuchsia": ("183", "https://issues.fuchsia.dev"),
-    "angle": ("235", "https://issues.angleproject.org"),
-    "aomedia": ("261", "https://aomedia.issues.chromium.org"),
-    "webm": ("287", "https://issues.webmproject.org"),
-    "gn": ("339", "https://gn.issues.chromium.org"),
-    "project-zero": ("365", "https://project-zero.issues.chromium.org"),
-    "oss-fuzz": ("391", "https://issues.oss-fuzz.com"),
-}
+TRACKERS: list[dict[str, str | int]] = [
+    {"id": 1, "name": "pigweed", "url": "https://issues.pigweed.dev"},
+    {"id": 27, "name": "gerrit", "url": "https://issues.gerritcodereview.com"},
+    {"id": 53, "name": "git", "url": "https://git.issues.gerritcodereview.com"},
+    {"id": 79, "name": "skia", "url": "https://issues.skia.org"},
+    {"id": 105, "name": "webrtc", "url": "https://issues.webrtc.org"},
+    {"id": 131, "name": "libyuv", "url": "https://libyuv.issues.chromium.org"},
+    {"id": 157, "name": "chromium", "url": "https://issues.chromium.org"},
+    {"id": 183, "name": "fuchsia", "url": "https://issues.fuchsia.dev"},
+    {"id": 235, "name": "angle", "url": "https://issues.angleproject.org"},
+    {"id": 261, "name": "aomedia", "url": "https://aomedia.issues.chromium.org"},
+    {"id": 287, "name": "webm", "url": "https://issues.webmproject.org"},
+    {"id": 339, "name": "gn", "url": "https://gn.issues.chromium.org"},
+    {
+        "id": 365,
+        "name": "project-zero",
+        "url": "https://project-zero.issues.chromium.org",
+    },
+    {"id": 391, "name": "oss-fuzz", "url": "https://issues.oss-fuzz.com"},
+]
 
 USER_AGENTS: list[str] = [
     "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)",
@@ -85,7 +89,7 @@ class Buganize:
 
     :param trackers: Trackers to query. Accepts names (e.g. ``["chromium"]``)
         or numeric ID strings (e.g. ``["157"]``). Names are resolved via
-        ``TRACKER_NAMES``. Pass multiple to search across specific trackers.
+        ``TRACKERS``. Pass multiple to search across specific trackers.
         Defaults to None (search all public trackers).
     :param timeout: HTTP request timeout in seconds. Defaults to 30.
     """
@@ -99,9 +103,8 @@ class Buganize:
 
         self.tracker_ids: list[str] | None = None
         if trackers:
-            self.tracker_ids = [
-                TRACKER_NAMES.get(name, (name, None))[0] for name in trackers
-            ]
+            tracker_by_name = {tracker["name"]: tracker["id"] for tracker in TRACKERS}
+            self.tracker_ids = [tracker_by_name.get(name, name) for name in trackers]
 
         self._http = httpx.AsyncClient(
             headers={
@@ -122,6 +125,23 @@ class Buganize:
     async def __aexit__(self, *args):
         await self.close()
 
+    async def is_healthy(self) -> bool:
+        """
+        Check if the issue tracker backend is reachable.
+
+        Hits the ``/action/yes`` endpoint which returns the literal
+        string ``yes`` on success. Works on all tracker domains.
+
+        :return: True if the backend responded with ``yes``, False otherwise.
+        """
+
+        url = f"{self.base_endpoint}/yes"
+        try:
+            response: Response = await self._http.get(url)
+            return response.status_code == 200 and response.text.strip() == "yes"
+        except httpx.HTTPError:
+            return False
+
     async def search(
         self,
         query: str,
@@ -139,6 +159,7 @@ class Buganize:
 
         if not query or not query.strip():
             raise ValueError("Search query cannot be empty")
+
         query_payload: list = (
             [query, None, page_size, page_token]
             if page_token
@@ -183,33 +204,16 @@ class Buganize:
         """
         Fetch a single issue by its numeric ID.
 
-        .. deprecated::
-            This method does not return the issue body/description
-            (``TOP[43]`` is always ``None``). Use :meth:`issues` with a
-            single-element list instead::
-
-                issues = await client.issues([issue_id])
-                issue_with_body = issues[0]
+        Returns all fields including the issue body/description.
 
         :param issue_id: The issue ID (e.g. 40060244).
-        :return: The issue with all available fields populated (except ``body``).
+        :return: The fully populated issue.
         """
-        # FIXME: getIssue does not populate TOP[43] (issue body/description).
-        # Use the batch endpoint (client.issues([id])) if the body is needed.
-        warnings.warn(
-            "issue() is deprecated and may be removed in a future version. "
-            "Use issues([issue_id])[0] instead, which also returns the issue body.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
-        request_body: list = [issue_id, 1, 1]
+        request_body: list = [issue_id, 2, 1]
         url: str = f"{self.base_endpoint}/issues/{issue_id}/getIssue"
 
-        # FIXME: currentTrackerId appears unnecessary — issue ID alone resolves correctly.
-        # params=QueryParams({"currentTrackerId": self.tracker_ids[0] if self.tracker_ids else None}),
         response: Response = await self._http.post(url=url, json=request_body)
-
         response.raise_for_status()
         return parse_issue_detail_response(raw_text=response.text)
 
@@ -247,16 +251,31 @@ class Buganize:
 
         return parse_updates_response(raw_text=response.text)
 
-    async def comments(self, issue_id: int) -> list[Comment]:
+    async def comments(
+        self,
+        issue_id: int,
+        sort_order: str = "ASC",
+        page_size: int = 500,
+        page_token: str | None = None,
+    ) -> CommentsResult:
         """
-        Fetch only the comments for an issue, in chronological order.
+        Fetch comments for an issue.
 
-        This is a convenience wrapper around issue_updates() that
-        filters out field-change-only updates and reverses to chronological order.
+        Returns only text comments (no field-change-only updates).
+        Use :meth:`issue_updates` if you need field changes.
 
         :param issue_id: The issue ID to fetch comments for.
-        :return: Comments oldest-first.
+        :param sort_order: ``"ASC"`` for oldest-first, ``"DESC"`` for newest-first.
+        :param page_size: Number of comments per page (max 500).
+        :param page_token: Pagination token from a previous CommentsResult.
+        :return: Comments and pagination info.
         """
 
-        result: IssueUpdatesResult = await self.issue_updates(issue_id=issue_id)
-        return result.comments
+        url: str = f"{self.base_endpoint}/issues/{issue_id}/listComments"
+        request_body: list = [issue_id, sort_order, page_size]
+        if page_token:
+            request_body.append(page_token)
+
+        response: Response = await self._http.post(url, json=request_body)
+        response.raise_for_status()
+        return parse_comments_response(raw_text=response.text)

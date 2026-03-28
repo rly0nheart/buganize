@@ -6,6 +6,7 @@ from datetime import datetime
 __all__ = [
     "CUSTOM_FIELD_IDS",
     "Comment",
+    "CommentsResult",
     "CustomFieldValue",
     "FieldChange",
     "Issue",
@@ -306,6 +307,29 @@ class Comment:
     author: str | None = None
     timestamp: datetime | None = None
     body: str = ""
+
+
+@dataclass
+class CommentsResult:
+    """
+    Result from fetching comments via the listComments endpoint.
+
+    Attributes:
+        comments: The comments for this page.
+        total_count: Total number of text comments on this issue.
+        next_page_token: Token for fetching the next page, if there are more.
+    """
+
+    comments: list[Comment]
+    total_count: int
+    next_page_token: str | None = None
+
+    @property
+    def has_more(self) -> bool:
+        """
+        Whether there are more comments beyond this page.
+        """
+        return self.next_page_token is not None
 
 
 @dataclass

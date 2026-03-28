@@ -83,6 +83,53 @@ def _column_header(key: str) -> str:
     return key.replace("_", " ").title()
 
 
+def make_table(
+    columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
+) -> RichTable:
+    """
+    Create a Rich table with the given columns.
+
+    :param columns: List of ``(header, column_kwargs)`` tuples.
+    :param expand: Whether the table should expand to fill the terminal width.
+    :return: A configured Rich table ready for rows.
+    """
+
+    table = RichTable(box=box.ASCII, highlight=True, expand=expand)
+
+    for header, col_kwargs in columns:
+        table.add_column(header, **col_kwargs)
+
+    return table
+
+
+def print_trackers(trackers: list[dict[str, str | int]]):
+    """
+    Print available trackers as a Rich table.
+
+    :param trackers: The ``TRACKERS`` list from :mod:`buganize.api.client`.
+    """
+
+    table = make_table(
+        columns=[
+            ("#", {"style": "dim", "justify": "right"}),
+            ("ID", {"style": "cyan", "justify": "right"}),
+            ("Name", {"style": "bold"}),
+            ("URL", {}),
+        ],
+    )
+
+    for index, tracker in enumerate(trackers, start=1):
+        table.add_row(
+            str(index),
+            str(tracker["id"]),
+            str(tracker["name"]),
+            str(tracker["url"]),
+        )
+
+    console.print(table)
+    console.print(f"\n{len(trackers)} trackers available")
+
+
 class Save:
     """
     Handles exporting row data to CSV and JSON files.
@@ -170,40 +217,20 @@ class Format:
 
 class Print:
     """
-    Renders issues, comments, or tracker info as Rich tables to the console.
+    Renders issues or comments as Rich tables to the console.
 
     Dispatches to the appropriate rendering method based on the data type:
 
     - ``list[Issue]`` → :meth:`issues` (multi-issue table)
     - ``Issue`` → :meth:`issue` (single-issue detail view)
     - ``list[Comment]`` → :meth:`comments` (comment table)
-    - ``dict[str, tuple[str, str]]`` → :meth:`trackers` (tracker listing)
 
     :param data: The data to render. Accepted types are a list of issues,
-        a single issue, a list of comments, or the ``TRACKER_NAMES`` dict.
+        a single issue, or a list of comments.
     """
 
-    def __init__(self, data: list[Issue] | list[Comment] | Issue | dict[str, tuple]):
+    def __init__(self, data: list[Issue] | list[Comment] | Issue):
         self.data = data
-
-    @staticmethod
-    def _make_table(
-        columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
-    ) -> RichTable:
-        """
-        Create a Rich table with the given columns.
-
-        :param columns: List of ``(header, column_kwargs)`` tuples.
-        :param expand: Whether the table should expand to fill the terminal width.
-        :return: A configured Rich table ready for rows.
-        """
-
-        table = RichTable(box=box.ASCII, highlight=True, expand=expand)
-
-        for header, col_kwargs in columns:
-            table.add_column(header, **col_kwargs)
-
-        return table
 
     def print(self, fields: list[str] | None = None):
         """
@@ -353,25 +380,6 @@ class Print:
             for key, value in self.data.custom_fields.items():
                 console.print(f"    {key}: {value}")
 
-    def trackers(self):
-        """
-        Print available trackers as a Rich table with ID, name, and URL columns.
-
-        Expects ``self.data`` to be the ``TRACKER_NAMES`` dict
-        (``dict[str, tuple[str, str]]``) mapping tracker names to ``(id, url)`` tuples.
-        """
-
-        table = self._make_table(
-            columns=[
-                ("ID", {"style": "cyan", "justify": "right"}),
-                ("Name", {"style": "bold"}),
-                ("URL", {}),
-            ],
-        )
-        for name, (tid, url) in self.data.items():
-            table.add_row(tid, name, url)
-        console.print(table)
-
     def issues(self, fields: list[str] | None = None):
         """
         Print issues as a Rich table.
@@ -383,7 +391,7 @@ class Print:
         extra_columns = [
             (_column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
         ]
-        table = self._make_table(
+        table = make_table(
             columns=[
                 ("#", {"justify": "right"}),
                 ("Priority", {}),
@@ -420,7 +428,7 @@ class Print:
         Print comments as a Rich table.
         """
 
-        table = self._make_table(
+        table = make_table(
             columns=[
                 ("#", {"style": "cyan", "no_wrap": True}),
                 ("Author", {"style": "bold"}),

@@ -1,7 +1,8 @@
-from .api.client import Buganize, TRACKER_NAMES
+from .api.client import Buganize, TRACKERS
 from .api.models import (
     CUSTOM_FIELD_IDS,
     Comment,
+    CommentsResult,
     CustomFieldValue,
     FieldChange,
     Issue,
@@ -18,8 +19,9 @@ from .cli.output_handler import EXTRA_FIELDS
 __all__ = [
     "CUSTOM_FIELD_IDS",
     "Buganize",
-    "TRACKER_NAMES",
+    "TRACKERS",
     "Comment",
+    "CommentsResult",
     "CustomFieldValue",
     "EXTRA_FIELDS",
     "FieldChange",

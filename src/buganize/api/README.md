@@ -1,5 +1,7 @@
 # Google Issue Tracker (Buganizer)  API Reference
 
+> **Last updated:** 28 03 2026, 16:59:17
+
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
 browser traffic with BurpSuite and mitmproxy. There is no official documentation.
@@ -14,6 +16,7 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
     - [Search Issues](#search-issues)
     - [Get Single Issue](#get-single-issue)
     - [Batch Get Issues](#batch-get-issues)
+    - [List Comments](#list-comments)
     - [List Issue Updates](#list-issue-updates)
     - [Get Component](#get-component)
     - [Batch Get Components](#batch-get-components)
@@ -21,10 +24,12 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
     - [Get Hotlist](#get-hotlist)
     - [Batch Get Hotlists](#batch-get-hotlists)
     - [List Issue Relationships](#list-issue-relationships)
+    - [Health Check](#health-check)
 6. [Response Shapes](#response-shapes)
     - [Search Response](#search-response)
     - [Issue Detail Response](#issue-detail-response)
     - [Batch Response](#batch-response)
+    - [Comments Response](#comments-response)
     - [Updates Response](#updates-response)
 7. [Issue Array (48 elements)](#issue-array-48-elements)
     - [Top-Level Index Map](#top-level-index-map)
@@ -57,6 +62,10 @@ have their own internal structure.
 
 No cookies or tokens are needed for reading public issues. The only required headers are `Content-Type`, `Origin`,
 `Referer`, and a browser-like `User-Agent`.
+
+See [FINDINGS.md](FINDINGS.md) for additional endpoints and behaviors discovered
+by intercepting authenticated browser traffic with mitmproxy. That file tracks
+what has been tested and what still needs verification.
 
 ## Base URL & Headers
 
@@ -151,7 +160,7 @@ POST /action/issues/list
 |----------|----------------|------------------|-----------------------------------------------------------------------|
 | `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all |
 | `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)                                   |
-| `[6][1]` | unknown        | `null`           | Always `null`                                                         |
+| `[6][1]` | (reserved)     | `null`           | Must be `null`. Any other value returns 400. Sort order is not supported for search |
 | `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250                                 |
 | `[6][3]` | page_token     | `str \| omitted` | Pagination token from previous response                               |
 
@@ -206,17 +215,20 @@ POST /action/issues/{issue_id}/getIssue?currentTrackerId={tracker_id}
 ```json
 [
   ISSUE_ID,
-  1,
-  1
+  DETAIL_LEVEL,
+  FLAG_2
 ]
 ```
 
-The two `1` values appear to be flags (possibly "include details" and
-"include custom fields"). Their exact meaning is unknown.
+| Position | Field        | Type  | Description                                            |
+|----------|--------------|-------|--------------------------------------------------------|
+| `[0]`    | issue_id     | `int` | The issue ID                                           |
+| `[1]`    | detail_level | `int` | `2` = include body, links, and relationship graph. Any other value returns baseline fields only |
+| `[2]`    | flag_2       | `int` | No observable effect (tested 0-10). Use `1`            |
 
-> **Note:** This endpoint does **not** populate `TOP[43]` (issue
-> body/description) — it is always `null`. Use the batch endpoint
-> instead if you need the description.
+> **Important:** Pass `2` as `detail_level` to populate `TOP[37]`
+> (relationship graph), `TOP[40]` (links), and `TOP[43]`
+> (body/description). With any other value those fields are `null`.
 
 ### Batch Get Issues
 
@@ -233,17 +245,61 @@ POST /action/issues/batch
   null,
   [
     ISSUE_IDS,
-    2,
-    2
+    DETAIL_LEVEL,
+    FLAG_2
   ]
 ]
 ```
 
-| Position | Field     | Type        | Description                  |
-|----------|-----------|-------------|------------------------------|
-| `[3][0]` | issue_ids | `list[int]` | List of issue IDs to fetch   |
-| `[3][1]` | flag_1    | `int`       | Always `2` (purpose unknown) |
-| `[3][2]` | flag_2    | `int`       | Always `2` (purpose unknown) |
+| Position | Field        | Type        | Description                                            |
+|----------|--------------|-------------|--------------------------------------------------------|
+| `[1]`    | (unused)     | `null`      | Ignored by the server                                  |
+| `[2]`    | (unused)     | `null`      | Ignored by the server                                  |
+| `[3][0]` | issue_ids    | `list[int]` | List of issue IDs to fetch                             |
+| `[3][1]` | detail_level | `int`       | `2` = include body, links, and relationship graph. Same as getIssue |
+| `[3][2]` | flag_2       | `int`       | No observable effect (tested 0-10). Use `2`            |
+
+### List Comments
+
+```
+POST /action/issues/{issue_id}/listComments
+```
+
+**Request body:**
+
+```json
+[
+  ISSUE_ID,
+  SORT_ORDER,
+  PAGE_SIZE,
+  PAGE_TOKEN
+]
+```
+
+| Position | Field      | Type             | Description                                                             |
+|----------|------------|------------------|-------------------------------------------------------------------------|
+| `[0]`    | issue_id   | `int`            | The issue ID                                                            |
+| `[1]`    | sort_order | `str \| null`    | `"ASC"` for oldest-first, `"DESC"` for newest-first. `null` = `"DESC"` |
+| `[2]`    | page_size  | `int`            | Number of comments per page (max 500)                                   |
+| `[3]`    | page_token | `str \| omitted` | Pagination token from previous response (e.g. `"start_index:2"`)       |
+
+Returns only text comments — no field-change-only updates. The `total_count`
+reflects the number of text comments, which is typically lower than the
+`comment_count` on the issue (which includes field-change-only updates from
+the `/updates` endpoint).
+
+Use this endpoint when you only need comments. Use `/updates` when you need
+the full audit trail with field changes.
+
+**Example — first 3 comments, oldest first:**
+
+```json
+[
+  496840714,
+  "ASC",
+  3
+]
+```
 
 ### List Issue Updates
 
@@ -261,7 +317,27 @@ POST /action/issues/{issue_id}/updates?currentTrackerId={tracker_id}
 ```
 
 Returns all updates (comments + field changes) in **reverse chronological
-order** (newest first).
+order** (newest first). The request also accepts an extended format:
+
+```json
+[
+  ISSUE_ID,
+  SORT_ORDER,
+  PAGE_SIZE,
+  PAGE_TOKEN,
+  UNKNOWN_FLAG
+]
+```
+
+| Position | Field        | Type             | Description                                              |
+|----------|--------------|------------------|----------------------------------------------------------|
+| `[0]`    | issue_id     | `int`            | The issue ID                                             |
+| `[1]`    | sort_order   | `str \| omitted` | `"ASC"` or `"DESC"` (omit for server default: DESC)     |
+| `[2]`    | page_size    | `int \| omitted` | Number of updates per page                               |
+| `[3]`    | page_token   | `null \| str`    | Pagination token                                         |
+| `[4]`    | unknown_flag | `int \| omitted` | Always `2` in browser traffic — purpose unknown          |
+
+The short form `[ISSUE_ID]` still works and returns all updates newest-first.
 
 ### Get Component
 
@@ -362,6 +438,18 @@ blocking/blocked-by relationships.
 Note that "blocking" issue IDs are available directly on the issue array at
 `TOP[36]`, but "blocked by" data is only available through this endpoint.
 
+### Health Check
+
+```
+GET /action/yes
+```
+
+No request body. Returns the literal string `yes` as `text/plain` (no
+anti-XSSI prefix, no JSON). No authentication required.
+
+Works on all 13 tracker domains — useful as a connectivity check before
+making real API calls.
+
 ## Response Shapes
 
 ### Search Response
@@ -403,6 +491,28 @@ data[0][2][0] = array of 48-element issue entries
 
 **Note:** Batch responses may include `TOP[43]` (issue body/description),
 which is **not** populated in search responses.
+
+### Comments Response
+
+**Type string:** `b.ListIssueCommentsResponse`
+
+```
+data[0]    = ["b.ListIssueCommentsResponse", [COMMENTS, PAGE_TOKEN, TOTAL_COUNT]]
+data[0][1][0] = array of 18-element comment entries
+data[0][1][1] = next page token (e.g. "start_index:2"), null on last page
+data[0][1][2] = total text comment count
+```
+
+| Path        | Type          | Description                                             |
+|-------------|---------------|---------------------------------------------------------|
+| `[0][1][0]` | `list[list]`  | Array of 18-element comment entries                     |
+| `[0][1][1]` | `str \| null` | Next page token (`null` if last page)                   |
+| `[0][1][2]` | `int`         | Total text comment count (excludes field-change-only updates) |
+
+The comment arrays use the same 18-element format as comments embedded in
+update entries (see [Comment Array](#comment-array-18-elements)), except that
+sequence numbers are **1-indexed** here (first comment = 1), whereas in the
+`/updates` endpoint they are 0-indexed.
 
 ### Updates Response
 
@@ -760,7 +870,7 @@ See [Get Component](#get-component) for the full response structure.
   return wrong data.
 - Custom field mappings (OS, milestone, CVE, etc.) are based on the Chromium tracker. Other trackers may use different
   field IDs, in which case those fields will appear in the `custom_fields` dict instead of named attributes.
-- Pagination for updates (comments) is not fully wired up, currently fetches the first page only.
+- The `/listComments` endpoint has a max page size of 500. The `/updates` endpoint's max page size is untested.
 - The batch endpoint may not return issues in the same order as the input IDs.
 
 ## Debugging Tips

@@ -13,7 +13,7 @@ from .update_checker import update_check
 if t.TYPE_CHECKING:
     from rich.status import Status
 
-from ..api.client import Buganize, TRACKER_NAMES
+from ..api.client import Buganize, TRACKERS
 from ..cli import console, __pkg__, __version__, output_handler
 from ..cli.output_handler import EXTRA_FIELDS
 
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "-t",
         "--tracker",
         action="append",
-        choices=TRACKER_NAMES.keys(),
+        choices=[t["name"] for t in TRACKERS],
         help="tracker name (repeatable). Defaults to all",
     )
     parser.add_argument(
@@ -199,9 +199,7 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     export_formats = args.export
 
     status.update(f"[dim]Getting issue {issue_id}…[/]")
-    # Use batch endpoint to get the issue body/description (getIssue doesn't include it).
-    issues = await client.issues(issue_ids=[issue_id])
-    issue = issues[0]
+    issue = await client.issue(issue_id=issue_id)
     fields = resolve_fields(args=args)
 
     output_handler.Print(data=issue).print(fields=fields)
@@ -250,13 +248,13 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     export_formats = args.export
 
     status.update(status=f"[dim]Getting comments for issue {issue_id}…[/]")
-    comments = await client.comments(issue_id=issue_id)
+    result = await client.comments(issue_id=issue_id)
 
-    console.print(f"Issue #{issue_id} — {len(comments)} comments\n")
-    output_handler.Print(data=comments).print()
+    console.print(f"Issue #{issue_id} — {len(result.comments)} comments\n")
+    output_handler.Print(data=result.comments).print()
 
     if args.export:
-        output_format = output_handler.Format(items=comments)
+        output_format = output_handler.Format(items=result.comments)
         rows = output_format.to_rows()
         output_save = output_handler.Save(rows=rows)
         output_save.save(formats=export_formats)
@@ -278,6 +276,17 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     )
 
     async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
+        status.update("[dim]Init health check…[/dim]")
+
+        # TODO: Need to print more information in case health check fails.
+        #   Ideally, make is_healthy() return a tuple of bool, and response text
+        if not await client.is_healthy():
+            console.log(
+                "[bold red]✘[/bold red] Health check failed - 'is_healthy' returned False.",
+            )
+            return
+
+        console.log("[bold green]✔[/bold green] Health check passed")
         await args.func(client=client, args=args, status=status)
 
     await update_checker_task
@@ -294,7 +303,7 @@ def start():
     args = parse_args()
 
     if args.command == "trackers":
-        output_handler.Print(data=TRACKER_NAMES).trackers()
+        output_handler.print_trackers(TRACKERS)
         return
 
     logging.basicConfig(

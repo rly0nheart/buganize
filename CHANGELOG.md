@@ -5,12 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.4] - 2026-03-25
-### Fixed
-- Failing test
+## [1.6.0] - 2026-03-28
 
+### Added
+
+- _Buganize.is_healthy()_ — checks if the Buganizer backend is reachable via _/action/yes_
+- Health check runs automatically in the CLI before each command
+- _CommentsResult_ dataclass with _comments_, _total_count_, _next_page_token_, and _has_more_
+- API reference now documents the _/listComments_ endpoint, _/action/yes_ health check, and the extended _/updates_
+  request format with sort order
 
 ### Changed
+
+- _Buganize.comments()_ now uses the dedicated _/listComments_ endpoint instead of filtering _/updates_
+- _Buganize.comments()_ returns _CommentsResult_ instead of _list[Comment]_, with support for sort order ("ASC"/"DESC"),
+  page size (max 500), and pagination
+- Updated API reference: new endpoints, response shapes, and corrected limitations
+
+### Fixed
+
+- _Buganize.issue()_ now returns the issue body/description by passing _detail_level=2_ to the _getIssue_ endpoint.
+  Previously the body was always _None_ because the flag was set to _1_
+- Removed deprecation warning from _Buganize.issue()_, as it's now fully functional and the preferred way to fetch a
+  single issue
+
+## [1.5.4] - 2026-03-25
+
+### Fixed
+
+- Failing test
+
+### Changed
+
 - Added doc strings to tests
 - Added type hints to tests
 - Properly handle potentially private issues
@@ -19,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Nix shell support (`shell.nix`)
+- Nix shell support (_shell.nix_)
 
 ### Fixed
 
