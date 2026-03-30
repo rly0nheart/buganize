@@ -13,6 +13,7 @@ from .parser import (
 
 if typing.TYPE_CHECKING:
     from httpx import Response
+
     from .models import CommentsResult, Issue, IssueUpdatesResult, SearchResult
 
 __all__ = ["Buganize", "TRACKERS"]
@@ -95,9 +96,9 @@ class Buganize:
     """
 
     def __init__(
-        self,
-        trackers: list[str | int] = None,
-        timeout: float = 30.0,
+            self,
+            trackers: list[str | int] | None = None,
+            timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
@@ -143,10 +144,10 @@ class Buganize:
             return False
 
     async def search(
-        self,
-        query: str,
-        page_size: int = 50,
-        page_token: str | None = None,
+            self,
+            query: str,
+            page_size: int = 50,
+            page_token: str | None = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -244,7 +245,8 @@ class Buganize:
         """
 
         url: str = f"{self.base_endpoint}/issues/{issue_id}/updates"
-        # FIXME: currentTrackerId appears unnecessary — issue ID alone resolves correctly.
+        # currentTrackerId appears unnecessary, issue IDs are unique across all trackers,
+        # and resolve correctly regardless of what tracker is sent to the server.
         # params=QueryParams({"currentTrackerId": self.tracker_ids[0] if self.tracker_ids else None}),
         response: Response = await self._http.post(url=url, json=[issue_id])
         response.raise_for_status()
@@ -252,11 +254,11 @@ class Buganize:
         return parse_updates_response(raw_text=response.text)
 
     async def comments(
-        self,
-        issue_id: int,
-        sort_order: str = "ASC",
-        page_size: int = 500,
-        page_token: str | None = None,
+            self,
+            issue_id: int,
+            sort_order: str = "ASC",
+            page_size: int = 500,
+            page_token: str | None = None,
     ) -> CommentsResult:
         """
         Fetch comments for an issue.
