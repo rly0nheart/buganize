@@ -73,6 +73,7 @@ async def get_issue():
 
         print(issue.title)
         print(issue.url)  # https://issuetracker.google.com/issues/40060244
+        print(issue.body)  # Description
         print(issue.status.name)  # e.g. "FIXED"
         print(issue.priority.name)  # e.g. "P2"
         print(issue.severity.name)  # e.g. "S2" (may differ from priority)
@@ -85,15 +86,6 @@ async def get_issue():
         print(issue.blocking_issue_ids)  # e.g. [11111]
         print(issue.views_24h, issue.views_7d, issue.views_30d)  # e.g. 5, 20, 100
 ```
-
-> **Note:** `client.issue()` does not return the issue description (`issue.body` will be `None`).
-> If you need the description, use the batch endpoint with a single-element list:
->
-> ```python
-> issues = await client.issues([40060244])
-> issue = issues[0]
-> print(issue.body)  # Full description text
-> ```
 
 ### Batch get issues
 
