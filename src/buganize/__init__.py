@@ -4,6 +4,7 @@ from .api.models import (
     Comment,
     CommentsResult,
     CustomFieldValue,
+    EXTRA_FIELDS,
     FieldChange,
     Issue,
     IssueType,
@@ -14,7 +15,6 @@ from .api.models import (
     Severity,
     Status,
 )
-from .cli.output_handler import EXTRA_FIELDS
 
 __all__ = [
     "CUSTOM_FIELD_IDS",

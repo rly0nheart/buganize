@@ -11,6 +11,12 @@
 pip install buganize
 ```
 
+**Or with the CLI utility:**
+
+```shell
+pip install buganize[cli]
+```
+
 ### Nix
 
 A `shell.nix` is provided for Nix users:

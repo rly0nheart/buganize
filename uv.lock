@@ -77,10 +77,14 @@ jupyter = [
 
 [[package]]
 name = "buganize"
-version = "1.6.0"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+]
+
+[package.optional-dependencies]
+cli = [
     { name = "rich" },
 ]
 
@@ -94,8 +98,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "rich", specifier = ">=14.3.3" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.3.3" },
 ]
+provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
 dev = [

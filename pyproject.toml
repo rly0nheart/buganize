@@ -1,6 +1,6 @@
 [project]
 name = "buganize"
-version = "1.6.0"
+version = "1.7.0"
 description = "Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
@@ -35,8 +35,10 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.28.1",
-    "rich>=14.3.3",
 ]
+
+[project.optional-dependencies]
+cli = ["rich>=14.3.3"]
 
 [dependency-groups]
 dev = [
@@ -51,8 +53,8 @@ Documentation = "https://github.com/rly0nheart/buganize/blob/master/USAGE.md"
 Repository = "https://github.com/rly0nheart/buganize"
 
 [project.scripts]
-buganize = "buganize.cli.main:start"
-buganise = "buganize.cli.main:start"
+buganize = "buganize.cli:start"
+buganise = "buganize.cli:start"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

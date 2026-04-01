@@ -8,6 +8,7 @@ __all__ = [
     "Comment",
     "CommentsResult",
     "CustomFieldValue",
+    "EXTRA_FIELDS",
     "FieldChange",
     "Issue",
     "IssueType",
@@ -18,6 +19,66 @@ __all__ = [
     "Severity",
     "Status",
 ]
+
+# Extra fields available via --fields/--all-fields. Each key is both the CLI
+# field name and the column header (title-cased with underscores as spaces).
+# The value is a getter that extracts a display string from an Issue.
+EXTRA_FIELDS: dict[str, t.Callable[["Issue"], t.Any]] = {
+    "owner": lambda issue: issue.owner,
+    "reporter": lambda issue: issue.reporter,
+    "verifier": lambda issue: issue.verifier,
+    "type": lambda issue: issue.issue_type.name if issue.issue_type else None,
+    "component": lambda issue: str(issue.component_id) if issue.component_id else None,
+    "tags": lambda issue: ", ".join(issue.component_tags) or None,
+    "ancestor_tags": lambda issue: ", ".join(issue.component_ancestor_tags) or None,
+    "labels": lambda issue: ", ".join(issue.labels) or None,
+    "os": lambda issue: ", ".join(issue.os) or None,
+    "milestone": lambda issue: ", ".join(issue.milestone) or None,
+    "ccs": lambda issue: ", ".join(issue.ccs) or None,
+    "hotlists": lambda issue: ", ".join(str(h) for h in issue.hotlist_ids) or None,
+    "severity": lambda issue: (
+        issue.severity.name if issue.severity is not None else None
+    ),
+    "collaborators": lambda issue: ", ".join(issue.collaborators) or None,
+    "found_in": lambda issue: ", ".join(issue.found_in) or None,
+    "in_prod": lambda issue: "Yes" if issue.in_prod else None,
+    "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
+    or None,
+    "duplicates": lambda issue: ", ".join(str(d) for d in issue.duplicate_issue_ids)
+    or None,
+    "cve": lambda issue: ", ".join(issue.cve) or None,
+    "cwe": lambda issue: str(int(issue.cwe_id)) if issue.cwe_id is not None else None,
+    "build": lambda issue: issue.build_number,
+    "introduced_in": lambda issue: issue.introduced_in,
+    "merge": lambda issue: ", ".join(issue.merge) or None,
+    "merge_request": lambda issue: ", ".join(issue.merge_request) or None,
+    "release_block": lambda issue: ", ".join(issue.release_block) or None,
+    "notice": lambda issue: issue.notice,
+    "flaky_test": lambda issue: issue.flaky_test,
+    "est_days": lambda issue: (
+        str(issue.estimated_days) if issue.estimated_days is not None else None
+    ),
+    "next_action": lambda issue: issue.next_action,
+    "vrp_reward": lambda issue: (
+        str(issue.vrp_reward) if issue.vrp_reward is not None else None
+    ),
+    "irm_link": lambda issue: issue.irm_link,
+    "sec_release": lambda issue: ", ".join(issue.security_release) or None,
+    "fixed_by": lambda issue: ", ".join(issue.fixed_by_code_changes) or None,
+    "created": lambda issue: issue.created_at.isoformat() if issue.created_at else None,
+    "modified": lambda issue: (
+        issue.modified_at.isoformat() if issue.modified_at else None
+    ),
+    "verified": lambda issue: (
+        issue.verified_at.isoformat() if issue.verified_at else None
+    ),
+    "comments": lambda issue: str(issue.comment_count),
+    "stars": lambda issue: str(issue.star_count),
+    "last_modifier": lambda issue: issue.last_modifier,
+    "24h_views": lambda issue: str(issue.views_24h) if issue.views_24h else None,
+    "7d_views": lambda issue: str(issue.views_7d) if issue.views_7d else None,
+    "30d_views": lambda issue: str(issue.views_30d) if issue.views_30d else None,
+}
 
 
 class Status(enum.IntEnum):

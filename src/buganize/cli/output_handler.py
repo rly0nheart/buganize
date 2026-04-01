@@ -1,4 +1,5 @@
 import csv
+import html
 import json
 import typing as t
 from datetime import datetime
@@ -8,68 +9,8 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table as RichTable
 
-from ..api.models import Comment, Issue
-from ..cli import console
-
-# Extra fields available via --fields/--all-fields. Each key is both the CLI
-# field name and the column header (title-cased with underscores as spaces).
-# The value is a getter that extracts a display string from an Issue.
-EXTRA_FIELDS: dict[str, t.Callable[[Issue], t.Any]] = {
-    "owner": lambda issue: issue.owner,
-    "reporter": lambda issue: issue.reporter,
-    "verifier": lambda issue: issue.verifier,
-    "type": lambda issue: issue.issue_type.name if issue.issue_type else None,
-    "component": lambda issue: str(issue.component_id) if issue.component_id else None,
-    "tags": lambda issue: ", ".join(issue.component_tags) or None,
-    "ancestor_tags": lambda issue: ", ".join(issue.component_ancestor_tags) or None,
-    "labels": lambda issue: ", ".join(issue.labels) or None,
-    "os": lambda issue: ", ".join(issue.os) or None,
-    "milestone": lambda issue: ", ".join(issue.milestone) or None,
-    "ccs": lambda issue: ", ".join(issue.ccs) or None,
-    "hotlists": lambda issue: ", ".join(str(h) for h in issue.hotlist_ids) or None,
-    "severity": lambda issue: (
-        issue.severity.name if issue.severity is not None else None
-    ),
-    "collaborators": lambda issue: ", ".join(issue.collaborators) or None,
-    "found_in": lambda issue: ", ".join(issue.found_in) or None,
-    "in_prod": lambda issue: "Yes" if issue.in_prod else None,
-    "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
-    or None,
-    "duplicates": lambda issue: ", ".join(str(d) for d in issue.duplicate_issue_ids)
-    or None,
-    "cve": lambda issue: ", ".join(issue.cve) or None,
-    "cwe": lambda issue: str(int(issue.cwe_id)) if issue.cwe_id is not None else None,
-    "build": lambda issue: issue.build_number,
-    "introduced_in": lambda issue: issue.introduced_in,
-    "merge": lambda issue: ", ".join(issue.merge) or None,
-    "merge_request": lambda issue: ", ".join(issue.merge_request) or None,
-    "release_block": lambda issue: ", ".join(issue.release_block) or None,
-    "notice": lambda issue: issue.notice,
-    "flaky_test": lambda issue: issue.flaky_test,
-    "est_days": lambda issue: (
-        str(issue.estimated_days) if issue.estimated_days is not None else None
-    ),
-    "next_action": lambda issue: issue.next_action,
-    "vrp_reward": lambda issue: (
-        str(issue.vrp_reward) if issue.vrp_reward is not None else None
-    ),
-    "irm_link": lambda issue: issue.irm_link,
-    "sec_release": lambda issue: ", ".join(issue.security_release) or None,
-    "fixed_by": lambda issue: ", ".join(issue.fixed_by_code_changes) or None,
-    "created": lambda issue: issue.created_at.isoformat() if issue.created_at else None,
-    "modified": lambda issue: (
-        issue.modified_at.isoformat() if issue.modified_at else None
-    ),
-    "verified": lambda issue: (
-        issue.verified_at.isoformat() if issue.verified_at else None
-    ),
-    "comments": lambda issue: str(issue.comment_count),
-    "stars": lambda issue: str(issue.star_count),
-    "last_modifier": lambda issue: issue.last_modifier,
-    "24h_views": lambda issue: str(issue.views_24h) if issue.views_24h else None,
-    "7d_views": lambda issue: str(issue.views_7d) if issue.views_7d else None,
-    "30d_views": lambda issue: str(issue.views_30d) if issue.views_30d else None,
-}
+from .console import console
+from ..api.models import Comment, EXTRA_FIELDS, Issue
 
 
 def _column_header(key: str) -> str:
@@ -132,7 +73,7 @@ def print_trackers(trackers: list[dict[str, str | int]]):
 
 class Save:
     """
-    Handles exporting row data to CSV and JSON files.
+    Handles exporting row data to CSV, JSON, and HTML files.
 
     :param rows: List of dicts representing table rows.
     """
@@ -144,7 +85,7 @@ class Save:
         """
         Write rows to timestamped files in the specified formats.
 
-        :param formats: List of format strings, each one of ``"csv"`` or ``"json"``.
+        :param formats: List of format strings, each one of ``"csv"``, ``"json"``, or ``"html"``.
         """
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -154,6 +95,8 @@ class Save:
                 self.to_csv(self.rows, path)
             elif fmt == "json":
                 self.to_json(self.rows, path)
+            elif fmt == "html":
+                self.to_html(self.rows, path)
 
     @staticmethod
     def to_csv(rows: list[dict[str, t.Any]], path: str):
@@ -170,7 +113,7 @@ class Save:
             writer = csv.DictWriter(file, fieldnames=rows[0].keys())
             writer.writeheader()
             writer.writerows(rows)
-        console.print(f"[bold green]✔[/bold green] CSV exported to {path}")
+        console.print(f"\n[bold green]✔[/bold green] CSV exported to {path}")
 
     @staticmethod
     def to_json(rows: list[dict[str, t.Any]], path: str):
@@ -183,7 +126,76 @@ class Save:
 
         with open(path, "w") as file:
             json.dump(rows, file, indent=4, default=str)
-        console.print(f"[bold green]✔[/bold green] JSON exported to {path}")
+        console.print(f"\n[bold green]✔[/bold green] JSON exported to {path}")
+
+    @staticmethod
+    def to_html(rows: list[dict[str, t.Any]], path: str):
+        """
+        Write rows as an HTML table to a file.
+
+        :param rows: List of dicts to export.
+        :param path: Output file path.
+        """
+
+        if not rows:
+            return
+
+        headers = list(rows[0].keys())
+        lines = [
+            "<!DOCTYPE html>",
+            "<html><head>",
+            '<meta charset="utf-8">',
+            "<title>buganize export</title>",
+            "<style>",
+            "  table { border-collapse: collapse; width: 100%; }",
+            "  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }",
+            "  th { background-color: #f2f2f2; }",
+            "  tr:nth-child(even) { background-color: #fafafa; }",
+            "</style>",
+            "</head><body>",
+            "<table>",
+            "<thead><tr>",
+            "  <th>#</th>",
+        ]
+        for header in headers:
+            lines.append(f"  <th>{html.escape(str(header))}</th>")
+        lines.append("</tr></thead>")
+        lines.append("<tbody>")
+        for index, row in enumerate(rows, start=1):
+            lines.append("<tr>")
+            lines.append(f"  <td>{index}</td>")
+            for header in headers:
+                value = row.get(header, "")
+                lines.append(f"  <td>{html.escape(str(value))}</td>")
+            lines.append("</tr>")
+        lines.append("</tbody>")
+        lines.append("</table>")
+        lines.append("</body></html>")
+
+        with open(path, "w") as file:
+            file.write("\n".join(lines))
+        console.print(f"\n[bold green]✔[/bold green] HTML exported to {path}")
+
+
+def print_and_export(
+    data: list | object,
+    formats: list[str] | None = None,
+    fields: list[str] | None = None,
+):
+    """
+    Print data to the console and optionally export to file.
+
+    :param data: Issues, comments, or a single issue to display.
+    :param formats: Export format strings (e.g. ``["csv", "json"]``), or ``None`` to skip.
+    :param fields: Extra field names to include (issues only).
+    """
+
+    Print(data=data).print(fields=fields)
+
+    if formats:
+        items = [data] if not isinstance(data, list) else data
+        rows = Format(items=items).to_rows(fields=fields)
+        Save(rows=rows).save(formats=formats)
 
 
 class Format:

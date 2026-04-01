@@ -1,23 +1,20 @@
 import argparse
 import asyncio
-import logging
-import sys
 import typing as t
 from asyncio import Task
 from datetime import datetime
 
-from rich.logging import RichHandler
-
+from . import __pkg__, __version__
+from .console import console
+from .output_handler import print_and_export
 from .update_checker import update_check
+from ..api.client import Buganize, TRACKERS
+from ..api.models import EXTRA_FIELDS
 
 if t.TYPE_CHECKING:
     from rich.status import Status
 
-from ..api.client import Buganize, TRACKERS
-from ..cli import console, __pkg__, __version__, output_handler
-from ..cli.output_handler import EXTRA_FIELDS
-
-__all__ = ["start"]
+__all__ = ["dispatch_client", "parse_args"]
 
 
 def resolve_fields(args: argparse.Namespace) -> list[str] | None:
@@ -71,7 +68,7 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--export",
         action="append",
-        choices=["csv", "json"],
+        choices=["csv", "json", "html"],
         help="export format (repeatable)",
     )
     parser.add_argument(
@@ -147,7 +144,6 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     """
 
     query = args.query
-    export_formats = args.export
     per_page = args.per_page
     limit = args.limit
     tracker_label = ", ".join(args.tracker) if args.tracker else "all"
@@ -174,13 +170,7 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     console.log(
         f"[bold green]✔[/bold green] Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
     )
-    output_handler.Print(data=issues).print(fields=fields)
-
-    if args.export:
-        output_format = output_handler.Format(items=issues)
-        rows = output_format.to_rows(fields=fields)
-        output_save = output_handler.Save(rows=rows)
-        output_save.save(formats=export_formats)
+    print_and_export(data=issues, formats=args.export, fields=fields)
 
     if result.has_more:
         console.log(f"\n~{result.total_count - len(issues)}+ more results available")
@@ -196,19 +186,11 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     """
 
     issue_id = args.issue_id
-    export_formats = args.export
-
     status.update(f"[dim]Getting issue {issue_id}…[/]")
     issue = await client.issue(issue_id=issue_id)
     fields = resolve_fields(args=args)
 
-    output_handler.Print(data=issue).print(fields=fields)
-
-    if args.export:
-        output_format = output_handler.Format(items=[issue])
-        rows = output_format.to_rows(fields=fields)
-        output_save = output_handler.Save(rows=rows)
-        output_save.save(formats=export_formats)
+    print_and_export(data=issue, formats=args.export, fields=fields)
 
 
 async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
@@ -221,18 +203,11 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     """
 
     issue_ids = args.issue_ids
-    export_formats = args.export
-
     status.update(f"[dim]Getting issues {issue_ids}…[/]")
     issues = await client.issues(issue_ids=issue_ids)
     fields = resolve_fields(args=args)
-    output_handler.Print(data=issues).print(fields=fields)
 
-    if args.export:
-        output_format = output_handler.Format(items=issues)
-        rows = output_format.to_rows(fields=fields)
-        output_save = output_handler.Save(rows=rows)
-        output_save.save(formats=export_formats)
+    print_and_export(data=issues, formats=args.export, fields=fields)
 
 
 async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
@@ -245,19 +220,12 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     """
 
     issue_id = args.issue_id
-    export_formats = args.export
 
     status.update(status=f"[dim]Getting comments for issue {issue_id}…[/]")
     result = await client.comments(issue_id=issue_id)
 
     console.print(f"Issue #{issue_id} — {len(result.comments)} comments\n")
-    output_handler.Print(data=result.comments).print()
-
-    if args.export:
-        output_format = output_handler.Format(items=result.comments)
-        rows = output_format.to_rows()
-        output_save = output_handler.Save(rows=rows)
-        output_save.save(formats=export_formats)
+    print_and_export(data=result.comments, formats=args.export)
 
 
 async def dispatch_client(args: argparse.Namespace, status: Status):
@@ -272,11 +240,15 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     """
 
     update_checker_task: Task = asyncio.create_task(
-        update_check(package_name=__pkg__, package_version=__version__)
+        update_check(
+            package_name=__pkg__,
+            package_version=__version__,
+            bypass_cache=True,
+        )
     )
 
     async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
-        status.update("[dim]Init health check…[/dim]")
+        status.update("[dim]Start health check…[/dim]")
 
         # TODO: Need to print more information in case health check fails.
         #   Ideally, make is_healthy() return a tuple of bool, and response text
@@ -290,47 +262,3 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
         await args.func(client=client, args=args, status=status)
 
     await update_checker_task
-
-
-def start():
-    """
-    CLI entry point. Parse arguments, configure logging, and run the subcommand.
-
-    The ``trackers`` subcommand is handled synchronously and returns early.
-    All other subcommands run through the async :func:`dispatch_client` path.
-    """
-
-    args = parse_args()
-
-    if args.command == "trackers":
-        output_handler.print_trackers(TRACKERS)
-        return
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.WARNING,
-        handlers=[RichHandler(markup=True, show_level=True)],
-    )
-
-    start_time = datetime.now()
-    try:
-        console.log(
-            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} "
-            f"(w/ tracker{'s' if not args.tracker or len(args.tracker) > 1 else ''}: [italic]"
-            f"{', '.join(args.tracker) if args.tracker else 'all'}"
-            f") at {datetime.now().strftime('%x %X')}"
-        )
-        with console.status("Initialising") as status:
-            asyncio.run(dispatch_client(args=args, status=status))
-    except KeyboardInterrupt:
-        console.log(
-            "[bold yellow]✘[/bold yellow] User interrupted ([bold yellow]CTRL+C[/bold yellow])"
-        )
-        sys.exit(0)
-    except Exception as exception:
-        console.log(
-            f"[bold red]✘[/bold red] An error occurred: [bold red]{exception}[/bold red]"
-        )
-        sys.exit(1)
-    finally:
-        elapsed = (datetime.now() - start_time).total_seconds()
-        console.log(f"[bold blue]*[/bold blue] Finished in {elapsed:.1f} seconds")

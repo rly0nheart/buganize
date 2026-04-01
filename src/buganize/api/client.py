@@ -96,9 +96,9 @@ class Buganize:
     """
 
     def __init__(
-            self,
-            trackers: list[str | int] | None = None,
-            timeout: float = 30.0,
+        self,
+        trackers: list[str | int] | None = None,
+        timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
@@ -144,10 +144,10 @@ class Buganize:
             return False
 
     async def search(
-            self,
-            query: str,
-            page_size: int = 50,
-            page_token: str | None = None,
+        self,
+        query: str,
+        page_size: int = 50,
+        page_token: str | None = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -254,11 +254,11 @@ class Buganize:
         return parse_updates_response(raw_text=response.text)
 
     async def comments(
-            self,
-            issue_id: int,
-            sort_order: str = "ASC",
-            page_size: int = 500,
-            page_token: str | None = None,
+        self,
+        issue_id: int,
+        sort_order: str = "ASC",
+        page_size: int = 500,
+        page_token: str | None = None,
     ) -> CommentsResult:
         """
         Fetch comments for an issue.

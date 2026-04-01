@@ -10,8 +10,6 @@ from tempfile import gettempdir
 
 import httpx
 
-from . import console
-
 
 def cache_results(function: t.Callable) -> t.Callable:
     """
@@ -49,7 +47,11 @@ def cache_results(function: t.Callable) -> t.Callable:
         try:
             with open(filename, "rb") as fp:
                 permacache = pickle.load(fp)
-        except (FileNotFoundError, FileExistsError):  # TODO: Handle specific exceptions
+        except (
+            FileNotFoundError,
+            FileExistsError,
+            IOError,
+        ):  # TODO: Handle specific exceptions
             return  # It's okay if it cannot load
         for key, value in permacache.items():
             if key not in cache or value[0] > cache[key][0]:
@@ -106,7 +108,7 @@ async def query_pypi(package: str, include_prereleases: bool) -> dict:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"https://pypi.org/pypi/{package}/json", timeout=1
+                f"https://pypi.org/pypi/{package}/json", timeout=3
             )
     except httpx.HTTPError:
         return {"success": False}
@@ -270,7 +272,9 @@ def pretty_date(the_datetime: datetime) -> str:
 
 
 async def update_check(
-    package_name: str, package_version: str, bypass_cache: bool = False
+    package_name: str,
+    package_version: str,
+    bypass_cache: bool = False,
 ):
     """
     Convenience function that outputs to stderr if an update is available.
@@ -283,6 +287,8 @@ async def update_check(
     checker = UpdateChecker(bypass_cache=bypass_cache)
     result = await checker.check(package_name, package_version=package_version)
     if result:
+        from .console import console
+
         console.log(f"[bold blue]⬆[/bold blue] {result}")
 
 
