@@ -7,13 +7,15 @@ from datetime import datetime
 from rich import box
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.table import Table as RichTable
+from rich.table import Table
 
 from .console import console
 from ..api.models import Comment, EXTRA_FIELDS, Issue
 
+__all__ = ["print_and_export"]
 
-def _column_header(key: str) -> str:
+
+def column_header(key: str) -> str:
     """
     Derive a column header from a field key.
 
@@ -25,8 +27,8 @@ def _column_header(key: str) -> str:
 
 
 def make_table(
-    columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
-) -> RichTable:
+        columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
+) -> Table:
     """
     Create a Rich table with the given columns.
 
@@ -35,7 +37,7 @@ def make_table(
     :return: A configured Rich table ready for rows.
     """
 
-    table = RichTable(box=box.ASCII, highlight=True, expand=expand)
+    table = Table(box=box.ASCII, highlight=True, expand=expand)
 
     for header, col_kwargs in columns:
         table.add_column(header, **col_kwargs)
@@ -71,7 +73,7 @@ def print_trackers(trackers: list[dict[str, str | int]]):
     console.print(f"\n{len(trackers)} trackers available")
 
 
-class Save:
+class SaveOutput:
     """
     Handles exporting row data to CSV, JSON, and HTML files.
 
@@ -178,9 +180,9 @@ class Save:
 
 
 def print_and_export(
-    data: list | object,
-    formats: list[str] | None = None,
-    fields: list[str] | None = None,
+        data: list | object,
+        formats: list[str] | None = None,
+        fields: list[str] | None = None,
 ):
     """
     Print data to the console and optionally export to file.
@@ -190,15 +192,15 @@ def print_and_export(
     :param fields: Extra field names to include (issues only).
     """
 
-    Print(data=data).print(fields=fields)
+    PrintOutput(data=data).print(fields=fields)
 
     if formats:
         items = [data] if not isinstance(data, list) else data
-        rows = Format(items=items).to_rows(fields=fields)
-        Save(rows=rows).save(formats=formats)
+        rows = FormatOutput(items=items).to_rows(fields=fields)
+        SaveOutput(rows=rows).save(formats=formats)
 
 
-class Format:
+class FormatOutput:
     """
     Converts issues or comments into serialisable row dicts for export.
 
@@ -211,8 +213,8 @@ class Format:
         self.items = items
 
     def to_rows(
-        self,
-        fields: list[str] | None = None,
+            self,
+            fields: list[str] | None = None,
     ) -> list[dict[str, t.Any]]:
         """
         Convert the items into a list of row dicts.
@@ -224,10 +226,10 @@ class Format:
         if not self.items:
             return []
 
-        return Convert(items=self.items, fields=fields).to_dict()
+        return ConvertOutput(items=self.items, fields=fields).to_dict()
 
 
-class Print:
+class PrintOutput:
     """
     Renders issues or comments as Rich tables to the console.
 
@@ -401,7 +403,7 @@ class Print:
 
         extra = fields or []
         extra_columns = [
-            (_column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
+            (column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
         ]
         table = make_table(
             columns=[
@@ -465,7 +467,7 @@ class Print:
         console.print(table)
 
 
-class Convert:
+class ConvertOutput:
     """
     Converts issues or comments into plain dicts.
 
@@ -474,9 +476,9 @@ class Convert:
     """
 
     def __init__(
-        self,
-        items: list[Issue] | list[Comment],
-        fields: list[str] | None = None,
+            self,
+            items: list[Issue] | list[Comment],
+            fields: list[str] | None = None,
     ):
         self.items = items
         self.fields = fields
@@ -523,7 +525,7 @@ class Convert:
             for field_name in fields or []:
                 if field_name in EXTRA_FIELDS:
                     getter = EXTRA_FIELDS[field_name]
-                    row[_column_header(key=field_name)] = getter(issue) or ""
+                    row[column_header(key=field_name)] = getter(issue) or ""
             rows.append(row)
         return rows
 
