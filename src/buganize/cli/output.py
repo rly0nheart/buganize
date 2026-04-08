@@ -12,10 +12,10 @@ from rich.table import Table
 from .console import console
 from ..api.models import Comment, EXTRA_FIELDS, Issue
 
-__all__ = ["print_and_export"]
+__all__ = ["print_trackers", "print_and_export"]
 
 
-def column_header(key: str) -> str:
+def _column_header(key: str) -> str:
     """
     Derive a column header from a field key.
 
@@ -26,8 +26,8 @@ def column_header(key: str) -> str:
     return key.replace("_", " ").title()
 
 
-def make_table(
-        columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
+def _make_table(
+    columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
 ) -> Table:
     """
     Create a Rich table with the given columns.
@@ -52,7 +52,7 @@ def print_trackers(trackers: list[dict[str, str | int]]):
     :param trackers: The ``TRACKERS`` list from :mod:`buganize.api.client`.
     """
 
-    table = make_table(
+    table = _make_table(
         columns=[
             ("#", {"style": "dim", "justify": "right"}),
             ("ID", {"style": "cyan", "justify": "right"}),
@@ -71,6 +71,27 @@ def print_trackers(trackers: list[dict[str, str | int]]):
 
     console.print(table)
     console.print(f"\n{len(trackers)} trackers available")
+
+
+def print_and_export(
+    data: list | object,
+    formats: list[str] | None = None,
+    fields: list[str] | None = None,
+):
+    """
+    Print data to the console and optionally export to file.
+
+    :param data: Issues, comments, or a single issue to display.
+    :param formats: Export format strings (e.g. ``["csv", "json"]``), or ``None`` to skip.
+    :param fields: Extra field names to include (issues only).
+    """
+
+    PrintOutput(data=data).print(fields=fields)
+
+    if formats:
+        items = [data] if not isinstance(data, list) else data
+        rows = FormatOutput(items=items).to_rows(fields=fields)
+        SaveOutput(rows=rows).save(formats=formats)
 
 
 class SaveOutput:
@@ -179,27 +200,6 @@ class SaveOutput:
         console.print(f"\n[bold green]✔[/bold green] HTML exported to {path}")
 
 
-def print_and_export(
-        data: list | object,
-        formats: list[str] | None = None,
-        fields: list[str] | None = None,
-):
-    """
-    Print data to the console and optionally export to file.
-
-    :param data: Issues, comments, or a single issue to display.
-    :param formats: Export format strings (e.g. ``["csv", "json"]``), or ``None`` to skip.
-    :param fields: Extra field names to include (issues only).
-    """
-
-    PrintOutput(data=data).print(fields=fields)
-
-    if formats:
-        items = [data] if not isinstance(data, list) else data
-        rows = FormatOutput(items=items).to_rows(fields=fields)
-        SaveOutput(rows=rows).save(formats=formats)
-
-
 class FormatOutput:
     """
     Converts issues or comments into serialisable row dicts for export.
@@ -213,8 +213,8 @@ class FormatOutput:
         self.items = items
 
     def to_rows(
-            self,
-            fields: list[str] | None = None,
+        self,
+        fields: list[str] | None = None,
     ) -> list[dict[str, t.Any]]:
         """
         Convert the items into a list of row dicts.
@@ -403,9 +403,9 @@ class PrintOutput:
 
         extra = fields or []
         extra_columns = [
-            (column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
+            (_column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
         ]
-        table = make_table(
+        table = _make_table(
             columns=[
                 ("#", {"justify": "right"}),
                 ("Priority", {}),
@@ -442,7 +442,7 @@ class PrintOutput:
         Print comments as a Rich table.
         """
 
-        table = make_table(
+        table = _make_table(
             columns=[
                 ("#", {"style": "cyan", "no_wrap": True}),
                 ("Author", {"style": "bold"}),
@@ -476,9 +476,9 @@ class ConvertOutput:
     """
 
     def __init__(
-            self,
-            items: list[Issue] | list[Comment],
-            fields: list[str] | None = None,
+        self,
+        items: list[Issue] | list[Comment],
+        fields: list[str] | None = None,
     ):
         self.items = items
         self.fields = fields
@@ -525,7 +525,7 @@ class ConvertOutput:
             for field_name in fields or []:
                 if field_name in EXTRA_FIELDS:
                     getter = EXTRA_FIELDS[field_name]
-                    row[column_header(key=field_name)] = getter(issue) or ""
+                    row[_column_header(key=field_name)] = getter(issue) or ""
             rows.append(row)
         return rows
 

@@ -16,7 +16,7 @@ def start():
     """
 
     try:
-        from rich.console import Console
+        import rich  # the cli's output, styling, and live statuses depend on rich: https://github.com/Textualize/rich
     except ImportError:
         print(
             f"{__pkg__} {__version__}: If you wish to run {__pkg__} as a CLI tool, "
@@ -30,15 +30,15 @@ def start():
 
     from rich.logging import RichHandler
 
-    from . import output_handler
     from .commands import dispatch_client, parse_args
     from .console import console
+    from .output import print_trackers
     from ..api.client import TRACKERS
 
     args = parse_args()
 
     if args.command == "trackers":
-        output_handler.print_trackers(TRACKERS)
+        print_trackers(trackers=TRACKERS)
         return
 
     logging.basicConfig(
