@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - YYYY-MM-DD
 
+### Added
+
+- Dockerfile
+
 ### Changed
 
 - Renamed _output_handler.py_ to _output.py_
