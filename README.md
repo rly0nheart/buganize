@@ -5,25 +5,6 @@
 <strong>Python client for the Google Issue Tracking system (Buganizer)</strong>
 </p>
 
-## Installation
-
-```shell
-pip install buganize
-```
-
-**Or with the CLI utility:**
-
-```shell
-pip install buganize[cli]
-```
-
-### Nix
-
-A `shell.nix` is provided for Nix users:
-
-```shell
-nix-shell
-```
 
 ## Quick start
 
@@ -39,11 +20,12 @@ async def main():
 ```
 
 ```bash
-buganize search "status:open"
+buganize search "status:open priority:p1"
 ```
 
 ## Documentation
-
-- See [USAGE.md](https://github.com/rly0nheart/buganize/blob/master/USAGE.md) for full library and CLI documentation.
-- See [API Reference](https://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme) for details about
+See:
+- [Installation](https://github.com/rly0nheart/buganize/blob/master/INSTALLATION.md) for installation guide.
+- [Usage](https://github.com/rly0nheart/buganize/blob/master/USAGE.md) for full library and CLI documentation.
+- [API Reference](https://github.com/rly0nheart/buganize/tree/master/src/buganize/api#readme) for details about
   limitations, and how the API works.
