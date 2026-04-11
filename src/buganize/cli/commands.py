@@ -6,7 +6,7 @@ from datetime import datetime
 
 from . import __pkg__, __version__
 from .console import console
-from .output_handler import print_and_export
+from .output import print_and_export
 from .update_checker import update_check
 from ..api.client import Buganize, TRACKERS
 from ..api.models import EXTRA_FIELDS
