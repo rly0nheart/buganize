@@ -1,5 +1,5 @@
 import random
-import typing
+import typing as t
 
 import httpx
 
@@ -11,7 +11,7 @@ from .parser import (
     parse_updates_response,
 )
 
-if typing.TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from httpx import Response
 
     from .models import CommentsResult, Issue, IssueUpdatesResult, SearchResult
@@ -96,9 +96,9 @@ class Buganize:
     """
 
     def __init__(
-        self,
-        trackers: list[str | int] | None = None,
-        timeout: float = 30.0,
+            self,
+            trackers: list[str | int] | None = None,
+            timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
@@ -118,6 +118,12 @@ class Buganize:
         )
 
     async def close(self):
+        """
+        Close the client and release its resources.
+
+        Should be called when the client is no longer needed if not using
+        it as an async context manager.
+        """
         await self._http.aclose()
 
     async def __aenter__(self):
@@ -144,10 +150,10 @@ class Buganize:
             return False
 
     async def search(
-        self,
-        query: str,
-        page_size: int = 50,
-        page_token: str | None = None,
+            self,
+            query: str,
+            page_size: int = 50,
+            page_token: str | None = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -254,11 +260,11 @@ class Buganize:
         return parse_updates_response(raw_text=response.text)
 
     async def comments(
-        self,
-        issue_id: int,
-        sort_order: str = "ASC",
-        page_size: int = 500,
-        page_token: str | None = None,
+            self,
+            issue_id: int,
+            sort_order: str = "ASC",
+            page_size: int = 500,
+            page_token: str | None = None,
     ) -> CommentsResult:
         """
         Fetch comments for an issue.
