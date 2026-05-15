@@ -1,6 +1,6 @@
 # Google Issue Tracker (Buganizer)  API Reference
 
-> **Last updated:** 28 03 2026, 16:59:17
+> **Last updated:** 15 05 2026, 16:40:43
 
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
@@ -41,7 +41,7 @@ browser traffic with BurpSuite and mitmproxy. There is no official documentation
 10. [Timestamps](#timestamps)
 11. [Enums](#enums)
 12. [Update Entry (10 elements)](#update-entry-10-elements)
-13. [Comment Array (18 elements)](#comment-array-18-elements)
+13. [Comment Array (19 elements)](#comment-array-19-elements)
 14. [Field Changes](#field-changes)
 15. [Pagination](#pagination)
 16. [Component Hierarchy](#component-hierarchy)
@@ -283,7 +283,7 @@ POST /action/issues/{issue_id}/listComments
 | `[2]`    | page_size  | `int`            | Number of comments per page (max 500)                                   |
 | `[3]`    | page_token | `str \| omitted` | Pagination token from previous response (e.g. `"start_index:2"`)       |
 
-Returns only text comments — no field-change-only updates. The `total_count`
+Returns only text comments (no field-change-only updates). The `total_count`
 reflects the number of text comments, which is typically lower than the
 `comment_count` on the issue (which includes field-change-only updates from
 the `/updates` endpoint).
@@ -335,7 +335,7 @@ order** (newest first). The request also accepts an extended format:
 | `[1]`    | sort_order   | `str \| omitted` | `"ASC"` or `"DESC"` (omit for server default: DESC)     |
 | `[2]`    | page_size    | `int \| omitted` | Number of updates per page                               |
 | `[3]`    | page_token   | `null \| str`    | Pagination token                                         |
-| `[4]`    | unknown_flag | `int \| omitted` | Always `2` in browser traffic — purpose unknown          |
+| `[4]`    | unknown_flag | `int \| omitted` | Always `2` in browser traffic (purpose unknown)          |
 
 The short form `[ISSUE_ID]` still works and returns all updates newest-first.
 
@@ -447,7 +447,7 @@ GET /action/yes
 No request body. Returns the literal string `yes` as `text/plain` (no
 anti-XSSI prefix, no JSON). No authentication required.
 
-Works on all 13 tracker domains — useful as a connectivity check before
+Works on all 13 tracker domains, useful as a connectivity check before
 making real API calls.
 
 ## Response Shapes
@@ -546,10 +546,12 @@ format is used across search, get, and batch responses.
 | `[9]`  | star_count         | `int \| null`        | Number of stars/votes. `null` means 0                                      |
 | `[10]` | (unknown)          | `int`                | Always `3`                                                                 |
 | `[11]` | comment_count      | `int`                | Total comment count                                                        |
-| `[12]` | (unknown)          | `str`                | Base64-encoded string on every issue, possibly an etag or cursor           |
+| `[12]` | revision_token     | `str`                | Synthetic etag: double-base64 of `{issue_id}-{update_rev}-{comment_rev}`. See [Revision Token](#revision-token-top12) |
 | `[13]` | owner              | user array           | Currently assigned owner                                                   |
 | `[14]` | custom_field_defs  | `list`               | Custom field definitions (schema, not values; values are in `details[14]`) |
 | `[33]` | custom_field_refs  | `list[list[int]]`    | Custom field IDs available for this issue's component                      |
+| `[34]` | last_activity_at   | `[secs, nanos]`      | Timestamp of the last substantive update (comment or meaningful field change); excludes automated metadata churn |
+| `[35]` | modified_at_mirror | `[secs, nanos]`      | Last write to the issue; equals `modified_at` (`TOP[5]`) or within a few seconds of it |
 | `[36]` | blocking_issue_ids | `list[int]`          | IDs of issues that this issue blocks                                       |
 | `[37]` | relationship_graph | `list`               | Relationship data: `[[this_issue, [[blocked_issue]]]]`                     |
 | `[40]` | links              | `list`               | URLs extracted from issue body: `[[[url], null, type_int]]`                |
@@ -579,6 +581,40 @@ It is `null` in search responses and only populated in batch/detail responses.
 
 The entry also contains an HTML-rendered version of the description deeper
 in the array, with Google redirect wrappers on all links.
+
+#### Revision Token (`TOP[12]`)
+
+Present on every issue in every response shape (search, get, batch). It is a
+plaintext content-revision token, double-base64-encoded:
+
+```python
+import base64
+inner = base64.b64decode(top12)            # -> b'NTEzNTIzNDQ4LTItMQ=='
+plain = base64.b64decode(inner).decode()    # -> '513523448-2-1'
+issue_id, update_rev, comment_rev = plain.split("-")
+```
+
+The decoded string is `{issue_id}-{update_rev}-{comment_rev}`:
+
+| Part          | Source                                                              |
+|---------------|---------------------------------------------------------------------|
+| `issue_id`    | Same as `TOP[1]`                                                    |
+| `update_rev`  | Equals `TOP[11]` (`comment_count`); `= /updates total − 1`          |
+| `comment_rev` | Comment sequence high-water mark (≈ `/listComments` total)          |
+
+Both revision numbers are monotonic counters rather than live counts: on
+issues with deleted, edited, or restricted comments the counter stays ahead
+of the visible count. New activity bumps `update_rev`; new comments bump
+`comment_rev`.
+
+The token is stable across repeated fetches and across sessions, identical
+between the `getIssue` and `batch` endpoints, and independent of the
+request's `detail_level`/`flag` parameters. It is server-emitted and
+consumed client-side as a cache key; it is never sent back to the server
+(it does not appear in any request URL, header, or body).
+
+Use it as a synthetic etag: if it differs between two fetches of the same
+issue, the issue gained updates or comments in between.
 
 ### Details Array (32 elements)
 
@@ -779,19 +815,24 @@ order** (newest first). Each update is a 10-element array:
 | `[8]` | (unknown)       | —                | —                                                                        |
 | `[9]` | issue_id        | `int`            | The issue this update belongs to                                         |
 
-## Comment Array (18 elements)
+## Comment Array (19 elements)
 
-When an update includes a comment, `update[2]` is an 18-element array:
+When an update includes a comment, `update[2]` is a 19-element array
+(indices 0 to 18):
 
-| Index | Field           | Type            | Notes                                            |
-|-------|-----------------|-----------------|--------------------------------------------------|
-| `[0]` | body            | `str`           | Comment text                                     |
-| `[1]` | (unknown)       | —               | —                                                |
-| `[2]` | author          | user array      | Comment author                                   |
-| `[3]` | timestamp       | `[secs, nanos]` | When the comment was posted                      |
-| `[4]` | (unknown)       | —               | —                                                |
-| `[5]` | issue_id        | `int`           | Parent issue ID                                  |
-| `[6]` | sequence_number | `int`           | **0-indexed** comment number (add 1 for display) |
+| Index  | Field           | Type            | Notes                                                                 |
+|--------|-----------------|-----------------|-----------------------------------------------------------------------|
+| `[0]`  | body            | `str`           | Comment text                                                          |
+| `[1]`  | (unknown)       | —               | —                                                                     |
+| `[2]`  | author          | user array      | Comment author                                                        |
+| `[3]`  | timestamp       | `[secs, nanos]` | When the comment was posted                                           |
+| `[4]`  | (unknown)       | `list`          | Always `[]`                                                           |
+| `[5]`  | issue_id        | `int`           | Parent issue ID                                                       |
+| `[6]`  | sequence_number | `int`           | **0-indexed** comment number (add 1 for display)                      |
+| `[8]`  | (unknown)       | `int`           | Small enum (`1` or `2`); likely a comment type/format marker          |
+| `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                     |
+| `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches |
+| `[17]` | last_editor     | user array      | Last person to edit the comment (equals `author` if never edited)     |
 
 ## Field Changes
 
@@ -907,7 +948,7 @@ See [Get Component](#get-component) for the full response structure.
 
 8. **`TOP[43]` (issue body)** is only populated in **batch/detail
    responses**, not in search results. It is a comment-like array, not
-   a plain string — the text is at `TOP[43][0]`. If you need the
+   a plain string; the text is at `TOP[43][0]`. If you need the
    description, use batch fetch or the single-issue endpoint.
 
 9. **`TOP[46]` (view counts)** contains `[24h_views, 7d_views, 30d_views]`.
@@ -928,3 +969,9 @@ See [Get Component](#get-component) for the full response structure.
     The issue array at `TOP[36]` only contains issues that this issue
     blocks. To find what blocks this issue, use
     `GET /action/issues/{id}/relationships?relationshipType=1`.
+
+14. **`TOP[12]` is a plaintext revision token.** Double-base64-decode it to
+    get `{issue_id}-{update_rev}-{comment_rev}`. It is server-emitted and
+    consumed client-side only, so never send it back. Use it as a cheap
+    change detector: a different value for the same issue means it gained
+    updates or comments. See [Revision Token](#revision-token-top12).

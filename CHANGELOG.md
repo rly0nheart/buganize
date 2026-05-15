@@ -5,10 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - YYYY-MM-DD
+## [1.8.0] - 2026-05-15
+
+### Added
+
+- _Issue.last_activity_at_ — timestamp of the last substantive update (comment or
+  meaningful field change), excluding the automated metadata churn that bumps
+  _modified_at_. Available as the _last_activity_ CLI field.
+- _Comment.last_editor_ and _Comment.is_edited_ — last person to edit a comment,
+  and whether it was edited since posting.
+- _buganize echo_ — standalone command that pings the backend and prints
+  _✔ echo: yes_ when reachable and healthy or _✘ echo: no_ when unreachable
+  or erroring.
 
 ### Changed
 
+- _Buganize.is_healthy()_ replaced by _Buganize.echo()_, which returns the raw
+  backend response (_"yes"_ when healthy, _"no"_ when unreachable) instead of a
+  bool.
+- The implicit pre-flight health check that ran before every command has been
+  removed; use _buganize echo_ to check connectivity.
 - Minor changes
 
 ## [1.7.1] - 2026-04-11

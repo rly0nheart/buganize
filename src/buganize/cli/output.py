@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .console import console
+from .symbols import OK
 from ..api.models import Comment, EXTRA_FIELDS, Issue
 
 __all__ = ["print_trackers", "print_and_export"]
@@ -136,7 +137,7 @@ class SaveOutput:
             writer = csv.DictWriter(file, fieldnames=rows[0].keys())
             writer.writeheader()
             writer.writerows(rows)
-        console.print(f"\n[bold green]✔[/bold green] CSV exported to {path}")
+        console.print(f"\n{OK} CSV exported to {path}")
 
     @staticmethod
     def to_json(rows: list[dict[str, t.Any]], path: str):
@@ -149,7 +150,7 @@ class SaveOutput:
 
         with open(path, "w") as file:
             json.dump(rows, file, indent=4, default=str)
-        console.print(f"\n[bold green]✔[/bold green] JSON exported to {path}")
+        console.print(f"\n{OK} JSON exported to {path}")
 
     @staticmethod
     def to_html(rows: list[dict[str, t.Any]], path: str):
@@ -197,7 +198,7 @@ class SaveOutput:
 
         with open(path, "w") as file:
             file.write("\n".join(lines))
-        console.print(f"\n[bold green]✔[/bold green] HTML exported to {path}")
+        console.print(f"\n{OK} HTML exported to {path}")
 
 
 class FormatOutput:
@@ -303,6 +304,8 @@ class PrintOutput:
             console.print(f"  Created:       {self.data.created_at.isoformat()}")
         if self.data.modified_at:
             console.print(f"  Modified:      {self.data.modified_at.isoformat()}")
+        if is_shown("last_activity") and self.data.last_activity_at:
+            console.print(f"  Last Activity: {self.data.last_activity_at.isoformat()}")
         console.print(f"  Comments:      {self.data.comment_count}")
         if self.data.body:
             console.print()
@@ -453,9 +456,12 @@ class PrintOutput:
         )
 
         for comment in self.data:
+            author = comment.author or "unknown"
+            if comment.is_edited:
+                author = f"{author} (edited)"
             table.add_row(
                 str(comment.comment_number),
-                comment.author or "unknown",
+                author,
                 (
                     comment.timestamp.strftime("%Y-%m-%d %H:%M UTC")
                     if comment.timestamp
@@ -546,6 +552,8 @@ class ConvertOutput:
                         comment.timestamp.strftime("%x %X") if comment.timestamp else ""
                     ),
                     "Body": comment.body,
+                    "Last Editor": comment.last_editor or "",
+                    "Edited": comment.is_edited,
                 }
             )
         return rows

@@ -96,13 +96,13 @@ class Buganize:
     """
 
     def __init__(
-            self,
-            trackers: list[str | int] | None = None,
-            timeout: float = 30.0,
+        self,
+        trackers: list[str | int] | None = None,
+        timeout: float = 30.0,
     ):
         self.base_endpoint = "https://issuetracker.google.com/action"
 
-        self.tracker_ids: list[str] | None = None
+        self.tracker_ids: list[str | int] | None = None
         if trackers:
             tracker_by_name = {tracker["name"]: tracker["id"] for tracker in TRACKERS}
             self.tracker_ids = [tracker_by_name.get(name, name) for name in trackers]
@@ -132,28 +132,33 @@ class Buganize:
     async def __aexit__(self, *args):
         await self.close()
 
-    async def is_healthy(self) -> bool:
+    async def echo(self) -> str:
         """
-        Check if the issue tracker backend is reachable.
+        Ping the issue tracker backend and return its raw response.
 
-        Hits the ``/action/yes`` endpoint which returns the literal
-        string ``yes`` on success. Works on all tracker domains.
+        Hits the ``/action/yes`` endpoint, which returns the literal
+        string ``yes`` (text/plain, no anti-XSSI prefix) when the backend
+        is reachable. Works on all tracker domains.
 
-        :return: True if the backend responded with ``yes``, False otherwise.
+        :return: The raw response text, which is ``"yes"`` when the backend
+            is reachable and healthy. Returns ``"no"`` when the backend is
+            unreachable or responds with a non-200 status.
         """
 
         url = f"{self.base_endpoint}/yes"
         try:
             response: Response = await self._http.get(url)
-            return response.status_code == 200 and response.text.strip() == "yes"
+            if response.status_code == 200:
+                return response.text.strip()
+            return "no"
         except httpx.HTTPError:
-            return False
+            return "no"
 
     async def search(
-            self,
-            query: str,
-            page_size: int = 50,
-            page_token: str | None = None,
+        self,
+        query: str,
+        page_size: int = 50,
+        page_token: str | None = None,
     ) -> SearchResult:
         """
         Search for issues in the Google Issue Tracker.
@@ -260,11 +265,11 @@ class Buganize:
         return parse_updates_response(raw_text=response.text)
 
     async def comments(
-            self,
-            issue_id: int,
-            sort_order: str = "ASC",
-            page_size: int = 500,
-            page_token: str | None = None,
+        self,
+        issue_id: int,
+        sort_order: str = "ASC",
+        page_size: int = 500,
+        page_token: str | None = None,
     ) -> CommentsResult:
         """
         Fetch comments for an issue.

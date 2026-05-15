@@ -224,6 +224,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
           [11] = comment count (int)
           [13] = owner user array
           [14] = custom field definitions (schema, not values)
+          [34] = last substantive activity timestamp [seconds, nanos]
           [36] = blocking issue IDs (list of ints)
           [41] = tracker ID (int)
           [46] = view counts [24h, 7d, 30d] (empty list = 0 views)
@@ -276,6 +277,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     created_timestamp = _safe_get(raw_entry, 4)
     modified_timestamp = _safe_get(raw_entry, 5)
     verified_timestamp = _safe_get(raw_entry, 6)
+    last_activity_timestamp = _safe_get(raw_entry, 34)
     star_count = _safe_get(raw_entry, 9, default=0)
     if not isinstance(star_count, int):
         star_count = 0
@@ -389,6 +391,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         created_at=_parse_timestamp(created_timestamp),
         modified_at=_parse_timestamp(modified_timestamp),
         verified_at=_parse_timestamp(verified_timestamp),
+        last_activity_at=_parse_timestamp(last_activity_timestamp),
         comment_count=comment_count,
         star_count=star_count,
         body=body,
@@ -553,7 +556,7 @@ def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
 
 def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
     """
-    Parse a comment body array (18 elements) into a Comment.
+    Parse a comment body array (19 elements) into a Comment.
 
     Comment array index map::
 
@@ -562,8 +565,9 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
         [3]  = timestamp [seconds, nanos]
         [5]  = issue ID (int)
         [6]  = comment sequence number (0-indexed in the API)
+        [17] = last editor user array (equals author if never edited)
 
-    :param raw_comment: The 18-element comment array from an update entry.
+    :param raw_comment: The 19-element comment array from an update entry.
     :param issue_id: The issue ID this comment belongs to.
     :return: The parsed comment, or None if raw_comment is invalid.
     """
@@ -575,6 +579,7 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
     author_array = _safe_get(raw_comment, 2)
     timestamp_array = _safe_get(raw_comment, 3)
     sequence_number = _safe_get(raw_comment, 6, default=0) or 0
+    last_editor_array = _safe_get(raw_comment, 17)
 
     return Comment(
         issue_id=issue_id,
@@ -582,6 +587,7 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
         author=_parse_email(author_array),
         timestamp=_parse_timestamp(timestamp_array),
         body=comment_text,
+        last_editor=_parse_email(last_editor_array),
     )
 
 
@@ -597,7 +603,7 @@ def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
 
         [0] = author user array
         [1] = timestamp [seconds, nanos]
-        [2] = comment body (18-element array) or None
+        [2] = comment body (19-element array) or None
         [3] = update sequence number
         [5] = field changes array
         [6] = comment number (descending in response order)
@@ -659,7 +665,7 @@ def parse_comments_response(raw_text: str) -> CommentsResult:
 
         [["b.ListIssueCommentsResponse", [[comment, ...], page_token, total_count]]]
 
-    Each comment is an 18-element array. Unlike the ``/updates`` endpoint,
+    Each comment is a 19-element array. Unlike the ``/updates`` endpoint,
     sequence numbers here are **1-indexed** (no ``+1`` adjustment needed).
 
     :param raw_text: Raw response body from POST /action/issues/{id}/listComments.
@@ -685,6 +691,7 @@ def parse_comments_response(raw_text: str) -> CommentsResult:
         timestamp_array = _safe_get(raw_comment, 3)
         issue_id = _safe_get(raw_comment, 5, default=0) or 0
         sequence_number = _safe_get(raw_comment, 6, default=1)
+        last_editor_array = _safe_get(raw_comment, 17)
 
         comments.append(
             Comment(
@@ -693,6 +700,7 @@ def parse_comments_response(raw_text: str) -> CommentsResult:
                 author=_parse_email(author_array),
                 timestamp=_parse_timestamp(timestamp_array),
                 body=comment_text,
+                last_editor=_parse_email(last_editor_array),
             )
         )
 

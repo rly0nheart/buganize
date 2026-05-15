@@ -1,6 +1,6 @@
 # Authenticated API Findings
 
-> **Last updated:** 28 03 2026, 16:59:17
+> **Last updated:** 15 05 2026, 16:40:43
 
 Discoveries from intercepting browser traffic (mitmproxy/mitmweb) while authenticated
 on `issuetracker.google.com`. These supplement the main `README.md` which
@@ -13,19 +13,19 @@ documents the unauthenticated API.
 | 1 | `/action/issues/{id}/listComments`          | POST   | **true** | Dedicated comments endpoint, separate from `/updates`                                          |
 | 2 | `/action/current_user/preferences`          | POST   | false    | Returns user preferences (seen: `[["f.mt"]]`)                                                  |
 | 3 | `/action/issues/read_timestamp`             | POST   | false    | Marks issue as read, returns timestamp                                                         |
-| 4 | `/action/access_policies/components%2F{id}` | GET    | false    | Component access policies (admin/writer/reader/appender roles)                                 |
-| 5 | `/action/user_access`                       | GET    | false    | Checks user's access level on specific resources                                               |
+| 4 | `/action/access_policies/components%2F{id}` | GET    | **true** | `b.AccessPolicy`: user arrays grouped by role (admin/writer/appender/reader)                    |
+| 5 | `/action/user_access`                       | GET    | **true** | Returns only relations the principal holds; observed `4` = reader on a public issue            |
 | 6 | `/action/retrieve_similar_issues`           | POST   | false    | Returns 401 without Google auth cookies                                                        |
-| 7 | `/action/yes`                               | GET    | **true** | Buganizer-wide health check — returns `yes` (text/plain). Implemented as `client.is_healthy()` |
+| 7 | `/action/yes`                               | GET    | **true** | Buganizer-wide health check, returns `yes` (text/plain). Implemented as `client.echo()`         |
 
 ## Changes to Existing Endpoints
 
 | #  | What Changed                          | Tested | Notes                                                                                                                                                         |
 |----|---------------------------------------|--------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 8  | Updates request format                | false  | Browser sends `[issue_id, "ASC", 1100, null, 2]` instead of just `[issue_id]`. Pos 1 = sort order (`"ASC"`/`"DESC"`), pos 2 = page size, pos 4 = unknown flag |
-| 9  | New field change types in updates     | false  | `is_archived`, `is_deleted`, `access_limit` seen in field changes                                                                                             |
+| 8  | Updates request format                | **true** | `[issue_id, "ASC", 1100, null, 2]` works. Pos 1 = sort order (`"ASC"`/`"DESC"`), pos 2 = page size, pos 4 = unknown flag (always `2`)                         |
+| 9  | New field change types in updates     | **true** | `is_archived`, `is_deleted`, `access_limit` appear in the initial (seq 1) update's field changes                                                             |
 | 10 | New protobuf types                    | false  | `google.devtools.issuetracker.v1.IssueAccessLimit`, `google.devtools.issuetracker.v1.User`                                                                    |
-| 11 | Issue array TOP[34] and TOP[35]       | false  | New timestamp fields not in README — possibly `closed_at` / `last_comment_at`                                                                                 |
+| 11 | Issue array TOP[34] and TOP[35]       | **true** | `TOP[35]` ≈ `modified_at` (last write); `TOP[34]` = last substantive update. See below                                                                       |
 | 12 | Hotlists batch silently drops private | false  | Batch GET returns only accessible hotlists, individual GETs return 403 for private ones                                                                       |
 
 ---
@@ -80,7 +80,8 @@ data[0] = ["b.ListIssueCommentsResponse", [COMMENTS, PAGE_TOKEN, TOTAL_COUNT]]
 
 **Comment array (18 elements):**
 
-Same 18-element format as comments from the `/updates` endpoint.
+Same format as comments from the `/updates` endpoint. Comment arrays are
+19 elements (indices 0 to 18).
 
 | Index  | Field           | Type            | Notes                                                                 |
 |--------|-----------------|-----------------|-----------------------------------------------------------------------|
@@ -90,9 +91,9 @@ Same 18-element format as comments from the `/updates` endpoint.
 | `[4]`  | (unknown)       | `list`          | Always `[]`                                                           |
 | `[5]`  | issue_id        | `int`           | Parent issue ID                                                       |
 | `[6]`  | sequence_number | `int`           | **1-indexed** comment number (unlike `/updates` where it's 0-indexed) |
-| `[8]`  | (unknown)       | `int`           | Matches `[6]` — possibly a duplicate or display number                |
-| `[9]`  | (unknown)       | `list`          | e.g. `[[1]]` — purpose unknown                                        |
-| `[14]` | cursor          | `str`           | Base64-encoded string — possibly etag or cursor                       |
+| `[8]`  | (unknown)       | `int`           | Small enum (`1` or `2`); likely a comment type/format marker          |
+| `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                     |
+| `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches |
 | `[17]` | last_editor     | user array      | Possibly the last person to edit this comment                         |
 
 **Example — fetch first 3 comments (oldest first) for issue 496840714:**
@@ -210,8 +211,8 @@ Response (trimmed):
 Key takeaways from this example:
 
 - Comment `[6]` is **1-indexed** (first comment = 1, not 0).
-- `[8]` value is `2` on both — does NOT match `[6]`. Possibly the comment's
-  "version" or "edit count" rather than a duplicate of the sequence number.
+- `[8]` is a small enum (`1` or `2`), independent of the sequence number;
+  likely a comment type/format marker.
 - `[17]` matches `[2]` (author = last_editor) when the comment hasn't been edited.
 - Page token `"start_index:2"` means the next page starts at offset 2.
 - Total is `7` (text comments only, not the 22 from `issue.comment_count`).
@@ -308,7 +309,10 @@ GET /action/user_access?relations=admin,writer,appender,reader&resourceNames=iss
 ]
 ```
 
-Relation type values (guessed): `3` = reader, `4` = appender.
+The integer is the relation type, in the order of the `relations=` query
+parameter: `1` = admin, `2` = writer, `3` = appender, `4` = reader. The
+response contains only the relations the principal actually holds; a
+public read-only user on a public issue returns just `4` (reader).
 
 ### 6. retrieve_similar_issues
 
@@ -399,10 +403,15 @@ These field names appear in `update[5]` but are not in the README:
 
 ### Issue Array TOP[34] and TOP[35] (finding #11)
 
-Observed on issue `497175171`:
+Both are `[secs, nanos]` timestamps present on every issue.
 
-- `TOP[34]`: `[1774697481, 850000000]` — matches the timestamp of the last comment
-- `TOP[35]`: `[1774697482, 72000000]` — matches `modified_at` (`TOP[5]`)
+`TOP[35]` tracks the last write to the issue, equal to `modified_at`
+(`TOP[5]`) or within a few seconds of it. It moves on every change,
+including the automated metadata churn (hotlist and custom-field bot
+updates) that also bumps `modified_at`.
 
-Best guesses: `TOP[34]` = `last_comment_at`, `TOP[35]` = could be a duplicate
-of `modified_at` or `resolved_at`.
+`TOP[34]` is the timestamp of the last substantive update: the most
+recent comment or meaningful field change (status, assignee, component).
+It excludes the trailing automated metadata churn, so on bot-triaged
+issues `TOP[34]` ≤ `TOP[35]`. It is populated even on issues with no
+comments, anchored to the last meaningful field change in that case.

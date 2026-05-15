@@ -19,15 +19,15 @@ async def client():
         yield buganizer
 
 
-class TestHealthcheck:
-    async def test_is_healthy_returns_true(self, client: Buganize) -> None:
+class TestEcho:
+    async def test_echo_returns_yes(self, client: Buganize) -> None:
         """
         Verify that the issue tracker backend is reachable.
 
         :param client: Buganize client.
         """
 
-        assert await client.is_healthy() is True
+        assert await client.echo() == "yes"
 
 
 class TestSearch:

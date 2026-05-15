@@ -33,6 +33,7 @@ def start():
     from .commands import dispatch_client, parse_args
     from .console import console
     from .output import print_trackers
+    from .symbols import INFO, WARN
     from ..api.client import TRACKERS
 
     args = parse_args()
@@ -48,20 +49,22 @@ def start():
 
     start_time = datetime.now()
     try:
+        if getattr(args, "uses_trackers", True):
+            tracker_label = ", ".join(args.tracker) if args.tracker else "all"
+            plural = "s" if not args.tracker or len(args.tracker) > 1 else ""
+            tracker_note = f" (w/ tracker{plural}: [italic]{tracker_label}[/italic])"
+        else:
+            tracker_note = ""
         console.log(
-            f"[bold blue]*[/bold blue] Started buganize CLI {__version__} "
-            f"(w/ tracker{'s' if not args.tracker or len(args.tracker) > 1 else ''}: [italic]"
-            f"{', '.join(args.tracker) if args.tracker else 'all'}"
-            f") at {datetime.now().strftime('%x %X')}"
+            f"{INFO} Started buganize CLI {__version__}{tracker_note} "
+            f"at {datetime.now().strftime('%x %X')}"
         )
         with console.status("[dim]Initialising…[/dim]") as status:
             asyncio.run(dispatch_client(args=args, status=status))
     except KeyboardInterrupt:
-        console.log(
-            "[bold yellow]✘[/bold yellow] User interrupted ([bold yellow]CTRL+C[/bold yellow])"
-        )
+        console.log(f"{WARN} User interrupted ([bold yellow]CTRL+C[/bold yellow])")
         sys.exit(0)
 
     finally:
         elapsed = (datetime.now() - start_time).total_seconds()
-        console.log(f"[bold blue]*[/bold blue] Finished in {elapsed:.1f} seconds")
+        console.log(f"{INFO} Finished in {elapsed:.1f} seconds")

@@ -7,6 +7,7 @@ from datetime import datetime
 from . import __pkg__, __version__
 from .console import console
 from .output import print_and_export
+from .symbols import FAIL, OK
 from .update_checker import update_check
 from ..api.client import Buganize, TRACKERS
 from ..api.models import EXTRA_FIELDS
@@ -89,6 +90,9 @@ def parse_args() -> argparse.Namespace:
         action="version",
         version=f"{__pkg__} {__version__}",
     )
+    # Commands are tracker-scoped by default; non-tracker commands (e.g.
+    # ``echo``) override this so the startup banner can drop the tracker note.
+    parser.set_defaults(uses_trackers=True)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # search
@@ -131,6 +135,18 @@ def parse_args() -> argparse.Namespace:
     # trackers
     subparsers.add_parser("trackers", help="list available trackers")
 
+    # echo (health check)
+    echo_parser = subparsers.add_parser(
+        "echo",
+        help="check whether the issue tracker backend is reachable",
+        description=(
+            "Ping the Buganizer backend (GET /action/yes) and print its "
+            "response. 'yes' means the backend is reachable and healthy; "
+            "'no' means it is unreachable or returned an error."
+        ),
+    )
+    echo_parser.set_defaults(func=cmd_echo, uses_trackers=False)
+
     return parser.parse_args()
 
 
@@ -168,12 +184,13 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     fields = resolve_fields(args=args)
 
     console.log(
-        f"[bold green]✔[/bold green] Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
+        f"{OK} Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
     )
     print_and_export(data=issues, formats=args.export, fields=fields)
 
     if result.has_more:
-        console.log(f"\n~{result.total_count - len(issues)}+ more results available")
+        print()
+        console.log(f"~{result.total_count - len(issues)}+ more results available")
 
 
 async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
@@ -228,6 +245,27 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     print_and_export(data=result.comments, formats=args.export)
 
 
+async def cmd_echo(client: Buganize, args: argparse.Namespace, status: Status):
+    """
+    Handle the 'echo' subcommand: ping the backend and print its response.
+
+    Prints a green ``✔`` when the backend is reachable and healthy
+    (``echo: yes``), or a red ``✘`` when it is unreachable or returned
+    an error (``echo: no``).
+
+    :param client: Shared API client instance.
+    :param args: Parsed arguments (unused).
+    :param status: Rich status spinner for progress updates.
+    """
+
+    status.update("[dim]Pinging issue tracker backend…[/dim]")
+    response = await client.echo()
+    if response == "yes":
+        console.log(f"{OK} echo: {response}")
+    else:
+        console.log(f"{FAIL} echo: {response}")
+
+
 async def dispatch_client(args: argparse.Namespace, status: Status):
     """
     Create a single client and dispatch to the chosen subcommand.
@@ -248,17 +286,6 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     )
 
     async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
-        status.update("[dim]Start health check…[/dim]")
-
-        # TODO: Need to print more information in case health check fails.
-        #   Ideally, make is_healthy() return a tuple of bool, and response text
-        if not await client.is_healthy():
-            console.log(
-                "[bold red]✘[/bold red] Health check failed - 'is_healthy' returned False.",
-            )
-            return
-
-        console.log("[bold green]✔[/bold green] Health check passed")
         await args.func(client=client, args=args, status=status)
 
     await update_checker_task

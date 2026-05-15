@@ -72,6 +72,9 @@ EXTRA_FIELDS: dict[str, t.Callable[["Issue"], t.Any]] = {
     "verified": lambda issue: (
         issue.verified_at.isoformat() if issue.verified_at else None
     ),
+    "last_activity": lambda issue: (
+        issue.last_activity_at.isoformat() if issue.last_activity_at else None
+    ),
     "comments": lambda issue: str(issue.comment_count),
     "stars": lambda issue: str(issue.star_count),
     "last_modifier": lambda issue: issue.last_modifier,
@@ -256,8 +259,12 @@ class Issue:
         found_in: "Found In" version strings (e.g. ["CP21.260116.011.A1"]).
         in_prod: Whether the issue has been observed in production.
         created_at: When the issue was created (UTC).
-        modified_at: When the issue was last modified (UTC).
+        modified_at: When the issue was last modified (UTC). Also moves on
+            automated metadata churn (hotlist/custom-field bot updates).
         verified_at: When the fix was verified (UTC).
+        last_activity_at: When the issue last had a substantive update (a
+            comment or meaningful field change), excluding the automated
+            metadata churn that bumps modified_at. May be None.
         comment_count: Total number of comments.
         star_count: Number of stars (watchers/votes).
         body: Issue description text. Only populated in batch/detail responses, not in search results.
@@ -309,6 +316,7 @@ class Issue:
     created_at: datetime | None = None
     modified_at: datetime | None = None
     verified_at: datetime | None = None
+    last_activity_at: datetime | None = None
     comment_count: int = 0
     star_count: int = 0
     body: str | None = None
@@ -361,6 +369,8 @@ class Comment:
         author: Email of the comment author.
         timestamp: When the comment was posted (UTC).
         body: The comment text.
+        last_editor: Email of the last person to edit the comment. Equals
+            author when the comment has never been edited.
     """
 
     issue_id: int
@@ -368,6 +378,16 @@ class Comment:
     author: str | None = None
     timestamp: datetime | None = None
     body: str = ""
+    last_editor: str | None = None
+
+    @property
+    def is_edited(self) -> bool:
+        """
+        Whether the comment has been edited since it was posted.
+
+        True when a last_editor is known and differs from the author.
+        """
+        return self.last_editor is not None and self.last_editor != self.author
 
 
 @dataclass
