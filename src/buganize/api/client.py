@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 import typing as t
 
@@ -19,24 +21,75 @@ if t.TYPE_CHECKING:
 __all__ = ["Buganize", "TRACKERS"]
 
 TRACKERS: list[dict[str, str | int]] = [
-    {"id": 1, "name": "pigweed", "url": "https://issues.pigweed.dev"},
-    {"id": 27, "name": "gerrit", "url": "https://issues.gerritcodereview.com"},
-    {"id": 53, "name": "git", "url": "https://git.issues.gerritcodereview.com"},
-    {"id": 79, "name": "skia", "url": "https://issues.skia.org"},
-    {"id": 105, "name": "webrtc", "url": "https://issues.webrtc.org"},
-    {"id": 131, "name": "libyuv", "url": "https://libyuv.issues.chromium.org"},
-    {"id": 157, "name": "chromium", "url": "https://issues.chromium.org"},
-    {"id": 183, "name": "fuchsia", "url": "https://issues.fuchsia.dev"},
-    {"id": 235, "name": "angle", "url": "https://issues.angleproject.org"},
-    {"id": 261, "name": "aomedia", "url": "https://aomedia.issues.chromium.org"},
-    {"id": 287, "name": "webm", "url": "https://issues.webmproject.org"},
-    {"id": 339, "name": "gn", "url": "https://gn.issues.chromium.org"},
+    {
+        "id": 1,
+        "slug": "pigweed",
+        "name": "Pigweed",
+        "url": "https://issues.pigweed.dev",
+    },
+    {
+        "id": 27,
+        "slug": "gerrit",
+        "name": "Gerrit",
+        "url": "https://issues.gerritcodereview.com",
+    },
+    {
+        "id": 53,
+        "slug": "git",
+        "name": "Git",
+        "url": "https://git.issues.gerritcodereview.com",
+    },
+    {"id": 79, "slug": "skia", "name": "Skia", "url": "https://issues.skia.org"},
+    {"id": 105, "slug": "webrtc", "name": "WebRTC", "url": "https://issues.webrtc.org"},
+    {
+        "id": 131,
+        "slug": "libyuv",
+        "name": "libyuv",
+        "url": "https://libyuv.issues.chromium.org",
+    },
+    {
+        "id": 157,
+        "slug": "chromium",
+        "name": "Chromium",
+        "url": "https://issues.chromium.org",
+    },
+    {
+        "id": 183,
+        "slug": "fuchsia",
+        "name": "Fuchsia",
+        "url": "https://issues.fuchsia.dev",
+    },
+    {
+        "id": 235,
+        "slug": "angle",
+        "name": "ANGLE",
+        "url": "https://issues.angleproject.org",
+    },
+    {
+        "id": 261,
+        "slug": "aomedia",
+        "name": "AOMedia",
+        "url": "https://aomedia.issues.chromium.org",
+    },
+    {
+        "id": 287,
+        "slug": "webm",
+        "name": "WebM",
+        "url": "https://issues.webmproject.org",
+    },
+    {"id": 339, "slug": "gn", "name": "GN", "url": "https://gn.issues.chromium.org"},
     {
         "id": 365,
-        "name": "project-zero",
+        "slug": "project-zero",
+        "name": "Project Zero",
         "url": "https://project-zero.issues.chromium.org",
     },
-    {"id": 391, "name": "oss-fuzz", "url": "https://issues.oss-fuzz.com"},
+    {
+        "id": 391,
+        "slug": "oss-fuzz",
+        "name": "OSS Fuzz",
+        "url": "https://issues.oss-fuzz.com",
+    },
 ]
 
 USER_AGENTS: list[str] = [
@@ -100,12 +153,18 @@ class Buganize:
         trackers: list[str | int] | None = None,
         timeout: float = 30.0,
     ):
+        """
+        Configure the underlying :class:`httpx.AsyncClient` and resolve any
+        tracker slugs to their numeric IDs. See the class docstring for
+        parameter details.
+        """
+
         self.base_endpoint = "https://issuetracker.google.com/action"
 
         self.tracker_ids: list[str | int] | None = None
         if trackers:
-            tracker_by_name = {tracker["name"]: tracker["id"] for tracker in TRACKERS}
-            self.tracker_ids = [tracker_by_name.get(name, name) for name in trackers]
+            tracker_by_slug = {tracker["slug"]: tracker["id"] for tracker in TRACKERS}
+            self.tracker_ids = [tracker_by_slug.get(name, name) for name in trackers]
 
         self._http = httpx.AsyncClient(
             headers={
@@ -124,12 +183,21 @@ class Buganize:
         Should be called when the client is no longer needed if not using
         it as an async context manager.
         """
+
         await self._http.aclose()
 
     async def __aenter__(self):
+        """
+        Async-context-manager entry. Returns ``self`` unchanged.
+        """
+
         return self
 
     async def __aexit__(self, *args):
+        """
+        Async-context-manager exit. Closes the underlying HTTP client.
+        """
+
         await self.close()
 
     async def echo(self) -> str:

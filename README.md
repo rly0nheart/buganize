@@ -26,6 +26,6 @@ buganize search "status:open priority:p1"
 ## Documentation
 See:
 - [Installation](https://github.com/rly0nheart/buganize/blob/master/INSTALLATION.md) for installation guide.
-- [Usage](https://github.com/rly0nheart/buganize/blob/master/USAGE.md) for full library and CLI documentation.
+- [Usage](https://github.com/rly0nheart/buganize/blob/master/USAGE.md) for full library, CLI, and GUI documentation.
 - [Buganizer API Reference](https://github.com/rly0nheart/buganize/blob/master/src/buganize/api/README.md) for details about
   limitations, and how the Buganizer API works.

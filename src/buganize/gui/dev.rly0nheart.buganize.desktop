@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Buganize
+GenericName=Issue Tracker Client
+Comment=Search the Google Issue Tracker
+Exec={EXEC}
+Path={PATH}
+Icon=dev.rly0nheart.buganize
+Categories=Development;Utility;
+StartupWMClass=dev.rly0nheart.buganize
+Terminal=false
+Keywords=bug;issue;tracker;buganizer;chromium;google;bounty

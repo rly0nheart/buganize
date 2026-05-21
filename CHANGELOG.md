@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-05-21
+
+### Added
+
+- **GTK4 GUI** — new desktop frontend at _buganize.gui_. Search the Issue
+  Tracker from a native window with reorderable columns, per-page navigation,
+  per-tracker icons, and right-click export to JSON, CSV, or HTML. Launch with
+  _python -m buganize.gui_ or use the _gui.sh_ helper on Nix.
+- **Per-tracker icons** — each tracker now ships with its branded SVG, shown
+  next to the name in the GUI tracker selector and on the window header.
+- **Desktop entry installer** — _python -m buganize.gui --install-desktop_
+  drops a _.desktop_ file plus icon symlink into _~/.local/share/_ so the app
+  shows up in your launcher.
+- **TRACKERS slug field** — each entry now carries an explicit _slug_
+  (URL-safe identifier) alongside the display _name_, so e.g.
+  _{"id": 157, "slug": "chromium", "name": "Chromium",
+  "url": "https://issues.chromium.org"}_.
+- **Helper scripts** — _cli.sh_ and _gui.sh_ for one-shot launches inside
+  the project's _nix-shell_.
+- Sphinx-style docstrings across the public and internal surface of
+  _buganize.api_ and _buganize.gui_.
+
+### Changed
+
+- _TRACKERS_ entries gained a _slug_ key and the existing _name_ key is now
+  the human-readable display name. Code passing tracker slugs (e.g.
+  _"chromium"_) to _Buganize(trackers=...)_ keeps working — the lookup
+  resolves slugs to IDs. Code reading _tracker["name"]_ now receives the
+  display name (_"Chromium"_) rather than the slug.
+- _shell.nix_ extended with the GTK4 runtime — _gtk4_, _libadwaita_,
+  _pygobject3_, _gobject-introspection_, _gdk-pixbuf_, _cairo_,
+  _pkg-config_.
+
 ## [1.8.0] - 2026-05-15
 
 ### Added
