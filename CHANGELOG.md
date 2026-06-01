@@ -5,18 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.10.0] - 2026-06-01
+## [1.9.0] - 2026-06-01
 
 ### Added
 
 - _-p/--pager_: page rendered issues and comments through the system pager
   (e.g. _less -R_). Only engages on a TTY; otherwise it prints a notice and
   shows the output unpaged.
-
-## [1.9.0] - 2026-05-21
-
-### Added
-
 - **GTK4 GUI**: new desktop frontend at _buganize.gui_. Search the Issue
   Tracker from a native window with reorderable columns, per-page navigation,
   per-tracker icons, and right-click export to JSON, CSV, or HTML. Launch with
