@@ -18,6 +18,8 @@
     - [Export](#export)
     - [Debug logging](#debug-logging)
     - [Timeout](#timeout)
+3. [GUI Usage](#gui-usage)
+   - [NixOS Users](#nixos-users)
 
 ## Library usage
 
@@ -251,3 +253,29 @@ buganize --timeout 60 search "status:open"
 
 > [!Tip]
 > British English spelling `buganise` will also work.
+
+## GUI Usage
+
+If you're feeling a bit elegant and lazy, you can use the GTK4-based GUI, on the condition that you have the following dependencies installed:
+
+1. **Python 3.11+**
+2. **GTK 4** (`Gtk-4.0` typelib): `gtk4` on Arch / Fedora, `libgtk-4-1` on Debian / Ubuntu.
+3. **libadwaita 1** (`Adw-1` typelib): `libadwaita` on Arch / Fedora, `libadwaita-1-0` on Debian / Ubuntu.
+4. **gdk-pixbuf 2** with SVG loader: usually pulled in as a GTK 4 dependency; on some distros the SVG loader is a separate package (`librsvg` / `gdk-pixbuf2-modules`).
+5. **gobject-introspection**: needed for PyGObject to resolve the typelibs above.
+6. **PyGObject** (the `gi` Python module): `python-gobject` on Arch, `python3-gi` on Debian / Ubuntu, `python3-gobject` on Fedora. Building from PyPI (`pip install PyGObject`) is possible but requires the GTK / GObject development headers.
+
+Once the system bits are in place, launch the GUI with:
+
+```bash
+python -m buganize.gui
+```
+
+To register the app in your application menu (writes `~/.local/share/applications/dev.rly0nheart.buganize.desktop` and the icon), run once:
+
+```bash
+python -m buganize.gui --install-desktop
+```
+
+### NixOS Users
+NixOS users (kind of) have it easy! If you're one, you know what shell.nix does and you can utilise its power with the [cli.sh](/cli.sh) and [gui.sh](/gui.sh) scripts. Just run whichever you like and enjoy.

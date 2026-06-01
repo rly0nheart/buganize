@@ -2,6 +2,7 @@ import csv
 import html
 import json
 import typing as t
+from contextlib import nullcontext
 from datetime import datetime
 
 from rich import box
@@ -10,7 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .console import console
-from .symbols import OK
+from .symbols import OK, WARN
 from ..api.models import Comment, EXTRA_FIELDS, Issue
 
 __all__ = ["print_trackers", "print_and_export"]
@@ -28,7 +29,7 @@ def _column_header(key: str) -> str:
 
 
 def _make_table(
-    columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
+        columns: list[tuple[str, dict[str, t.Any]]], expand: bool = False
 ) -> Table:
     """
     Create a Rich table with the given columns.
@@ -75,9 +76,10 @@ def print_trackers(trackers: list[dict[str, str | int]]):
 
 
 def print_and_export(
-    data: list | object,
-    formats: list[str] | None = None,
-    fields: list[str] | None = None,
+        data: list | object,
+        formats: list[str] | None = None,
+        fields: list[str] | None = None,
+        pager: bool = False,
 ):
     """
     Print data to the console and optionally export to file.
@@ -85,9 +87,10 @@ def print_and_export(
     :param data: Issues, comments, or a single issue to display.
     :param formats: Export format strings (e.g. ``["csv", "json"]``), or ``None`` to skip.
     :param fields: Extra field names to include (issues only).
+    :param pager: Page the rendered output through the system pager.
     """
 
-    PrintOutput(data=data).print(fields=fields)
+    PrintOutput(data=data).print(fields=fields, pager=pager)
 
     if formats:
         items = [data] if not isinstance(data, list) else data
@@ -214,8 +217,8 @@ class FormatOutput:
         self.items = items
 
     def to_rows(
-        self,
-        fields: list[str] | None = None,
+            self,
+            fields: list[str] | None = None,
     ) -> list[dict[str, t.Any]]:
         """
         Convert the items into a list of row dicts.
@@ -247,7 +250,7 @@ class PrintOutput:
     def __init__(self, data: list[Issue] | list[Comment] | Issue):
         self.data = data
 
-    def print(self, fields: list[str] | None = None):
+    def print(self, fields: list[str] | None = None, pager: bool = False):
         """
         Print data as a Rich table, dispatching based on data type.
 
@@ -256,17 +259,31 @@ class PrintOutput:
         data, use :meth:`trackers` directly instead.
 
         :param fields: Extra field names to include as columns (issues only).
+        :param pager: Page the rendered output through the system pager.
         """
 
         if not self.data:
             return
 
-        if isinstance(self.data, Issue):
-            self.issue(fields=fields)
-        elif all(isinstance(item, Issue) for item in self.data):
-            self.issues(fields=fields)
-        elif all(isinstance(item, Comment) for item in self.data):
-            self.comments()
+        # Paging is applied here (around the whole render) rather than inside
+        # each method so it covers every view uniformly. ``styles=True`` keeps
+        # ANSI colours; the pager must support them (e.g. ``less -R``). Paging
+        # only works on a real terminal, so warn and fall back to plain output
+        # when stdout isn't a TTY.
+        ctx = nullcontext()
+        if pager:
+            if console.is_terminal:
+                ctx = console.pager(styles=True)
+            else:
+                console.print(f"{WARN} Not a TTY — output won't be paged.")
+
+        with ctx:
+            if isinstance(self.data, Issue):
+                self.issue(fields=fields)
+            elif all(isinstance(item, Issue) for item in self.data):
+                self.issues(fields=fields)
+            elif all(isinstance(item, Comment) for item in self.data):
+                self.comments()
 
     def issue(self, fields: list[str] | None = None):
         """
@@ -482,9 +499,9 @@ class ConvertOutput:
     """
 
     def __init__(
-        self,
-        items: list[Issue] | list[Comment],
-        fields: list[str] | None = None,
+            self,
+            items: list[Issue] | list[Comment],
+            fields: list[str] | None = None,
     ):
         self.items = items
         self.fields = fields

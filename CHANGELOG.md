@@ -5,16 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-06-01
+
+### Added
+
+- _-p/--pager_: page rendered issues and comments through the system pager
+  (e.g. _less -R_). Only engages on a TTY; otherwise it prints a notice and
+  shows the output unpaged.
+
+## [1.9.0] - 2026-05-21
+
+### Added
+
+- **GTK4 GUI**: new desktop frontend at _buganize.gui_. Search the Issue
+  Tracker from a native window with reorderable columns, per-page navigation,
+  per-tracker icons, and right-click export to JSON, CSV, or HTML. Launch with
+  _python -m buganize.gui_ or use the _gui.sh_ helper on Nix.
+- **Per-tracker icons**: each tracker now ships with its branded SVG, shown
+  next to the name in the GUI tracker selector and on the window header.
+- **Desktop entry installer**: _python -m buganize.gui --install-desktop_
+  drops a _.desktop_ file plus icon symlink into _~/.local/share/_ so the app
+  shows up in your launcher.
+- **TRACKERS slug field**: each entry now carries an explicit _slug_
+  (URL-safe identifier) alongside the display _name_, so e.g.
+  _{"id": 157, "slug": "chromium", "name": "Chromium",
+  "url": "https://issues.chromium.org"}_.
+- **Helper scripts**: _cli.sh_ and _gui.sh_ for one-shot launches inside
+  the project's _nix-shell_.
+- Sphinx-style docstrings across the public and internal surface of
+  _buganize.api_ and _buganize.gui_.
+
+### Changed
+
+- _TRACKERS_ entries gained a _slug_ key and the existing _name_ key is now
+  the human-readable display name. Code passing tracker slugs (e.g.
+  _"chromium"_) to _Buganize(trackers=...)_ keeps working, the lookup
+  resolves slugs to IDs. Code reading _tracker["name"]_ now receives the
+  display name (_"Chromium"_) rather than the slug.
+- _shell.nix_ extended with the GTK4 runtime, _gtk4_, _libadwaita_,
+  _pygobject3_, _gobject-introspection_, _gdk-pixbuf_, _cairo_,
+  _pkg-config_.
+
 ## [1.8.0] - 2026-05-15
 
 ### Added
 
-- _Issue.last_activity_at_ — timestamp of the last substantive update (comment or
+- _Issue.last_activity_at_: timestamp of the last substantive update (comment or
   meaningful field change), excluding the automated metadata churn that bumps
   _modified_at_. Available as the _last_activity_ CLI field.
-- _Comment.last_editor_ and _Comment.is_edited_ — last person to edit a comment,
+- _Comment.last_editor_ and _Comment.is_edited_: last person to edit a comment,
   and whether it was edited since posting.
-- _buganize echo_ — standalone command that pings the backend and prints
+- _buganize echo_: standalone command that pings the backend and prints
   _✔ echo: yes_ when reachable and healthy or _✘ echo: no_ when unreachable
   or erroring.
 
@@ -43,17 +84,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **HTML export** — _buganize search … -e html_ writes a styled HTML table with a row index column
+- **HTML export**: _buganize search … -e html_ writes a styled HTML table with a row index column
 
 ### Changed
 
-- **Feature-gated CLI** — _rich_ is no longer a core dependency. Install the CLI with _pip install buganize[cli]_;
+- **Feature-gated CLI**: _rich_ is no longer a core dependency. Install the CLI with _pip install buganize[cli]_;
 
 ## [1.6.0] - 2026-03-28
 
 ### Added
 
-- _Buganize.is_healthy()_ — checks if the Buganizer backend is reachable via _/action/yes_
+- _Buganize.is_healthy()_: checks if the Buganizer backend is reachable via _/action/yes_
 - Health check runs automatically in the CLI before each command
 - _CommentsResult_ dataclass with _comments_, _total_count_, _next_page_token_, and _has_more_
 - API reference now documents the _/listComments_ endpoint, _/action/yes_ health check, and the extended _/updates_
@@ -141,20 +182,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Multi-tracker search** — '-t/--tracker' is now repeatable (e.g.
+- **Multi-tracker search**: '-t/--tracker' is now repeatable (e.g.
   'buganize -t chromium -t fuchsia search "status:open"')
 - 'Buganize(trackers=["chromium", "fuchsia"])' library API for multi-tracker queries
-- **Issue body/description** — 'Issue.body' field parsed from 'TOP[43][0]' in batch/detail responses
+- **Issue body/description**: 'Issue.body' field parsed from 'TOP[43][0]' in batch/detail responses
 
 ### Changed
 
-- 'Buganize(tracker=...)' renamed to 'Buganize(trackers=...)' — now accepts a list
+- 'Buganize(tracker=...)' renamed to 'Buganize(trackers=...)': now accepts a list
 - 'currentTrackerId' query parameter commented out on single-issue and updates endpoints (issue ID alone resolves
   correctly)
 
 ### Deprecated
 
-- 'Buganize.issue()' — does not return the issue body. Use 'Buganize.issues([id])[0]' instead
+- 'Buganize.issue()': does not return the issue body. Use 'Buganize.issues([id])[0]' instead
 
 ## [1.3.0] - 2026-02-25
 
@@ -182,17 +223,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Severity field** — issues now expose 'severity' (S0–S4), parsed independently from priority
-- **Duplicate tracking** — 'duplicate_issue_ids' shows which issues have been marked as duplicates
-- **Blocking issues** — 'blocking_issue_ids' sourced from the correct API field
-- **Collaborators** — list of collaborator emails on an issue
-- **Found-in versions** — 'found_in' shows which builds/versions a bug was discovered in
-- **In-production flag** — 'in_prod' indicates whether a bug has been seen in production
-- **View counts** — 'views_24h', 'views_7d', 'views_30d' for gauging issue activity
+- **Severity field**: issues now expose 'severity' (S0–S4), parsed independently from priority
+- **Duplicate tracking**: 'duplicate_issue_ids' shows which issues have been marked as duplicates
+- **Blocking issues**: 'blocking_issue_ids' sourced from the correct API field
+- **Collaborators**: list of collaborator emails on an issue
+- **Found-in versions**: 'found_in' shows which builds/versions a bug was discovered in
+- **In-production flag**: 'in_prod' indicates whether a bug has been seen in production
+- **View counts**: 'views_24h', 'views_7d', 'views_30d' for gauging issue activity
 - 14 extra field columns available in CLI output ('severity', 'collaborators', 'found_in', 'in_prod', 'duplicates',
   '24h_views', '7d_views', '30d_views', and more)
 - 'buganize trackers' CLI command to list all available trackers and their IDs
-- 'USAGE.md' — dedicated usage documentation for both the library and CLI
+- 'USAGE.md': dedicated usage documentation for both the library and CLI
 - API reference now documents 14 public trackers and 6 additional endpoints (components, trackers, hotlists,
   relationships)
 
@@ -200,12 +241,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Severity is shown by default in single-issue detail view
 - CLI '--tracker' argument now shows available tracker names in help output
-- 'Buganize(tracker_id=...)' renamed to 'Buganize(tracker=...)' — accepts both names ('"chromium"') and numeric IDs (
+- 'Buganize(tracker_id=...)' renamed to 'Buganize(tracker=...)': accepts both names ('"chromium"') and numeric IDs (
   '"157"')
 
 ### Fixed
 
-- 'details[21]' was incorrectly mapped to blocking issues — it is actually duplicate issue IDs
+- 'details[21]' was incorrectly mapped to blocking issues, it is actually duplicate issue IDs
 - Blocking issue IDs are now correctly sourced from the top-level array ('TOP[36]')
 - View counts corrected from '[1d, 7d, total]' to '[24h, 7d, 30d]'
 
@@ -219,7 +260,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rebrand from "Chromium Issue Tracker" to "Google Issue Tracker" — the client now queries all public trackers by
+- Rebrand from "Chromium Issue Tracker" to "Google Issue Tracker", the client now queries all public trackers by
   default
 - Drop 'pandas' dependency, all output uses Rich tables and stdlib 'csv'/'json' for export
 - Drop HTML export format, '--export' now accepts 'csv' and 'json' only
@@ -228,7 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - '-t'/'--tracker' flag to scope queries to a specific tracker by name ('chromium', 'fuchsia') or numeric ID.
   Without it, queries search across all public trackers on the Google Issue Tracker
-- 'API.md' — reverse-engineered documentation of the issuetracker.google.com API
+- 'API.md': reverse-engineered documentation of the issuetracker.google.com API
 
 ## [0.2.3] - 2026-02-22
 

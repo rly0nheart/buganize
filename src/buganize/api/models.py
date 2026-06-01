@@ -106,6 +106,14 @@ class Status(enum.IntEnum):
 
     @classmethod
     def _missing_(cls, value):
+        """
+        Synthesize a pseudo-member for unknown status values from the
+        API instead of raising. The result has ``name == "UNKNOWN_<value>"``.
+
+        :param value: Numeric status value returned by the API.
+        :return: A new :class:`Status` instance.
+        """
+
         obj = int.__new__(cls, value)
         obj._name_ = f"UNKNOWN_{value}"
         obj._value_ = value
@@ -116,6 +124,7 @@ class Status(enum.IntEnum):
         """
         Whether this status represents an open (unresolved) issue.
         """
+
         return self in (Status.NEW, Status.ASSIGNED, Status.ACCEPTED)
 
 
@@ -134,6 +143,14 @@ class Priority(enum.IntEnum):
 
     @classmethod
     def _missing_(cls, value):
+        """
+        Synthesize a pseudo-member for unknown priority values from the
+        API. Returns a member named ``"P<value>"``.
+
+        :param value: Numeric priority value returned by the API.
+        :return: A new :class:`Priority` instance.
+        """
+
         obj = int.__new__(cls, value)
         obj._name_ = f"P{value}"
         obj._value_ = value
@@ -156,6 +173,14 @@ class Severity(enum.IntEnum):
 
     @classmethod
     def _missing_(cls, value):
+        """
+        Synthesize a pseudo-member for unknown severity values from the
+        API. Returns a member named ``"S<value>"``.
+
+        :param value: Numeric severity value returned by the API.
+        :return: A new :class:`Severity` instance.
+        """
+
         obj = int.__new__(cls, value)
         obj._name_ = f"S{value}"
         obj._value_ = value
@@ -178,6 +203,14 @@ class IssueType(enum.IntEnum):
 
     @classmethod
     def _missing_(cls, value):
+        """
+        Synthesize a pseudo-member for unknown issue-type values from
+        the API. Returns a member named ``"TYPE_<value>"``.
+
+        :param value: Numeric issue-type value returned by the API.
+        :return: A new :class:`IssueType` instance.
+        """
+
         obj = int.__new__(cls, value)
         obj._name_ = f"TYPE_{value}"
         obj._value_ = value
@@ -355,6 +388,7 @@ class Issue:
         """
         Direct link to this issue on issuetracker.google.com.
         """
+
         return f"https://issuetracker.google.com/issues/{self.id}"
 
 
@@ -387,6 +421,7 @@ class Comment:
 
         True when a last_editor is known and differs from the author.
         """
+
         return self.last_editor is not None and self.last_editor != self.author
 
 
@@ -410,6 +445,7 @@ class CommentsResult:
         """
         Whether there are more comments beyond this page.
         """
+
         return self.next_page_token is not None
 
 
@@ -474,6 +510,7 @@ class IssueUpdatesResult:
         """
         Only the updates that have comments, in chronological order (oldest first).
         """
+
         return [u.comment for u in reversed(self.updates) if u.comment is not None]
 
     @property
@@ -481,6 +518,7 @@ class IssueUpdatesResult:
         """
         Whether there are more updates beyond this page.
         """
+
         return self.next_page_token is not None
 
 
@@ -508,4 +546,5 @@ class SearchResult:
         """
         Whether there are more results beyond this page.
         """
+
         return self.next_page_token is not None
