@@ -1,6 +1,6 @@
 [project]
 name = "buganize"
-version = "1.9.1"
+version = "1.9.2"
 description = "Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
