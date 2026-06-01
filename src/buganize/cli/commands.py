@@ -73,6 +73,12 @@ def parse_args() -> argparse.Namespace:
         help="export format (repeatable)",
     )
     parser.add_argument(
+        "-p",
+        "--pager",
+        action="store_true",
+        help="page output through the system pager (needs a styled pager, e.g. less -R)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="enable debug logging",
@@ -186,7 +192,13 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     console.log(
         f"{OK} Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
     )
-    print_and_export(data=issues, formats=args.export, fields=fields)
+    if args.pager:
+        # Rich's Status redirects sys.stdout, which makes the pager (and the
+        # TTY check) see a non-tty. Stop it first so paging can take over.
+        status.stop()
+    print_and_export(
+        data=issues, formats=args.export, fields=fields, pager=args.pager
+    )
 
     if result.has_more:
         print()
@@ -207,7 +219,11 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     issue = await client.issue(issue_id=issue_id)
     fields = resolve_fields(args=args)
 
-    print_and_export(data=issue, formats=args.export, fields=fields)
+    if args.pager:
+        status.stop()  # restore stdout so the pager works (Status redirects it)
+    print_and_export(
+        data=issue, formats=args.export, fields=fields, pager=args.pager
+    )
 
 
 async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
@@ -224,7 +240,11 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     issues = await client.issues(issue_ids=issue_ids)
     fields = resolve_fields(args=args)
 
-    print_and_export(data=issues, formats=args.export, fields=fields)
+    if args.pager:
+        status.stop()  # restore stdout so the pager works (Status redirects it)
+    print_and_export(
+        data=issues, formats=args.export, fields=fields, pager=args.pager
+    )
 
 
 async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
@@ -241,8 +261,12 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     status.update(status=f"[dim]Getting comments for issue {issue_id}…[/]")
     result = await client.comments(issue_id=issue_id)
 
+    if args.pager:
+        status.stop()  # restore stdout so the pager works (Status redirects it)
     console.print(f"Issue #{issue_id} — {len(result.comments)} comments\n")
-    print_and_export(data=result.comments, formats=args.export)
+    print_and_export(
+        data=result.comments, formats=args.export, pager=args.pager
+    )
 
 
 async def cmd_echo(client: Buganize, args: argparse.Namespace, status: Status):
