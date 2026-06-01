@@ -2,17 +2,12 @@
 
 A small GTK4 desktop frontend over the `buganize` Python client.
 
-The window has:
-
-- A free-text search bar at the top.
-- A row of filter dropdowns underneath: **Tracker**, **Status**, **Priority**, **Severity**, **Type**.
-- A results table (`Gtk.ColumnView`) showing the matching issues.
-- A **Load more** button for fetching the next page when the search has more results.
-- Double-click a row to open the issue on `issuetracker.google.com`.
-
-The search bar text and the dropdown values are combined into a single Google
-Issue Tracker query (e.g. `crash status:open priority:p1`) and sent through the
-existing async `Buganize` client.
+<table>
+  <tr>
+    <td><img width="1920" height="1200" alt="20260601-175818" src="https://github.com/user-attachments/assets/01d52886-1347-4ffc-9b74-a8f65ce27b48" /></td>
+    <td><img width="1920" height="1200" alt="20260601-175846" src="https://github.com/user-attachments/assets/5c6f3919-3890-4dfe-a7a4-874ffde43160" /></td>
+  </tr>
+</table>
 
 ## Requirements
 
