@@ -43,11 +43,13 @@ EXTRA_FIELDS: dict[str, t.Callable[["Issue"], t.Any]] = {
     "found_in": lambda issue: ", ".join(issue.found_in) or None,
     "in_prod": lambda issue: "Yes" if issue.in_prod else None,
     "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
-    or None,
+                              or None,
     "duplicates": lambda issue: ", ".join(str(d) for d in issue.duplicate_issue_ids)
-    or None,
+                                or None,
     "cve": lambda issue: ", ".join(issue.cve) or None,
-    "cwe": lambda issue: str(int(issue.cwe_id)) if issue.cwe_id is not None else None,
+    "cwe": lambda issue: (
+        str(int(t.cast(float, issue.cwe_id))) if issue.cwe_id is not None else None
+    ),
     "build": lambda issue: issue.build_number,
     "introduced_in": lambda issue: issue.introduced_in,
     "merge": lambda issue: ", ".join(issue.merge) or None,
@@ -114,6 +116,7 @@ class Status(enum.IntEnum):
         :return: A new :class:`Status` instance.
         """
 
+        # noinspection PyTypeChecker
         obj = int.__new__(cls, value)
         obj._name_ = f"UNKNOWN_{value}"
         obj._value_ = value
@@ -151,6 +154,7 @@ class Priority(enum.IntEnum):
         :return: A new :class:`Priority` instance.
         """
 
+        # noinspection PyTypeChecker
         obj = int.__new__(cls, value)
         obj._name_ = f"P{value}"
         obj._value_ = value
@@ -181,6 +185,7 @@ class Severity(enum.IntEnum):
         :return: A new :class:`Severity` instance.
         """
 
+        # noinspection PyTypeChecker
         obj = int.__new__(cls, value)
         obj._name_ = f"S{value}"
         obj._value_ = value
@@ -211,6 +216,7 @@ class IssueType(enum.IntEnum):
         :return: A new :class:`IssueType` instance.
         """
 
+        # noinspection PyTypeChecker
         obj = int.__new__(cls, value)
         obj._name_ = f"TYPE_{value}"
         obj._value_ = value
@@ -401,7 +407,9 @@ class Comment:
         issue_id: The issue this comment belongs to.
         comment_number: 1-indexed comment number.
         author: Email of the comment author.
-        timestamp: When the comment was posted (UTC).
+        timestamp: When the comment was last modified (UTC). Equals
+            created_at when the comment has never been edited.
+        created_at: When the comment was originally posted (UTC).
         body: The comment text.
         last_editor: Email of the last person to edit the comment. Equals
             author when the comment has never been edited.
@@ -411,6 +419,7 @@ class Comment:
     comment_number: int
     author: str | None = None
     timestamp: datetime | None = None
+    created_at: datetime | None = None
     body: str = ""
     last_editor: str | None = None
 
@@ -419,9 +428,14 @@ class Comment:
         """
         Whether the comment has been edited since it was posted.
 
-        True when a last_editor is known and differs from the author.
+        True when the last-modified timestamp is later than the creation
+        time (catches self-edits, where the author edits their own comment
+        and stays the last_editor), or when a known last_editor differs
+        from the author.
         """
 
+        if self.created_at and self.timestamp and self.created_at != self.timestamp:
+            return True
         return self.last_editor is not None and self.last_editor != self.author
 
 

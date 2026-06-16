@@ -281,7 +281,6 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     star_count = _safe_get(raw_entry, 9, default=0)
     if not isinstance(star_count, int):
         star_count = 0
-    issue_type_value = issue_type_detail
     comment_count = _safe_get(raw_entry, 11, default=0) or 0
     owner_array = _safe_get(raw_entry, 13)
     blocking_ids_array = _safe_get(raw_entry, 36)
@@ -375,11 +374,9 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         id=issue_id,
         title=title,
         status=Status(status_value) if status_value else Status.NEW,
-        priority=(
-            Priority(priority_value) if priority_value is not None else Priority.P2
-        ),
+        priority=Priority(priority_value),
         severity=severity_value,
-        issue_type=IssueType(issue_type_value) if issue_type_value else None,
+        issue_type=IssueType(issue_type_detail) if issue_type_detail else None,
         reporter=_parse_email(reporter_array),
         owner=_parse_email(owner_array),
         verifier=_parse_email(verifier_array),
@@ -554,7 +551,9 @@ def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     return changes
 
 
-def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
+def _parse_comment(
+    raw_comment: Any, issue_id: int, number_offset: int = 1
+) -> Comment | None:
     """
     Parse a comment body array (19 elements) into a Comment.
 
@@ -562,13 +561,17 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
 
         [0]  = comment text (str)
         [2]  = author user array
-        [3]  = timestamp [seconds, nanos]
+        [3]  = last-modified timestamp [seconds, nanos]
         [5]  = issue ID (int)
-        [6]  = comment sequence number (0-indexed in the API)
+        [6]  = comment sequence number
         [17] = last editor user array (equals author if never edited)
+        [18] = creation timestamp [seconds, nanos] (equals [3] if never edited)
 
     :param raw_comment: The 19-element comment array from an update entry.
     :param issue_id: The issue ID this comment belongs to.
+    :param number_offset: Added to the raw sequence number. The /updates
+        endpoint is 0-indexed (pass 1), /listComments is already 1-indexed
+        (pass 0).
     :return: The parsed comment, or None if raw_comment is invalid.
     """
 
@@ -580,12 +583,14 @@ def _parse_comment(raw_comment: Any, issue_id: int) -> Comment | None:
     timestamp_array = _safe_get(raw_comment, 3)
     sequence_number = _safe_get(raw_comment, 6, default=0) or 0
     last_editor_array = _safe_get(raw_comment, 17)
+    created_array = _safe_get(raw_comment, 18)
 
     return Comment(
         issue_id=issue_id,
-        comment_number=sequence_number + 1,  # convert from 0-indexed to 1-indexed
+        comment_number=sequence_number + number_offset,
         author=_parse_email(author_array),
         timestamp=_parse_timestamp(timestamp_array),
+        created_at=_parse_timestamp(created_array),
         body=comment_text,
         last_editor=_parse_email(last_editor_array),
     )
@@ -683,26 +688,11 @@ def parse_comments_response(raw_text: str) -> CommentsResult:
 
     comments = []
     for raw_comment in raw_comments:
-        if not isinstance(raw_comment, list):
-            continue
-
-        comment_text = _safe_get(raw_comment, 0, default="") or ""
-        author_array = _safe_get(raw_comment, 2)
-        timestamp_array = _safe_get(raw_comment, 3)
+        # /listComments sequence numbers are already 1-indexed, so no offset.
         issue_id = _safe_get(raw_comment, 5, default=0) or 0
-        sequence_number = _safe_get(raw_comment, 6, default=1)
-        last_editor_array = _safe_get(raw_comment, 17)
-
-        comments.append(
-            Comment(
-                issue_id=issue_id,
-                comment_number=sequence_number,  # already 1-indexed
-                author=_parse_email(author_array),
-                timestamp=_parse_timestamp(timestamp_array),
-                body=comment_text,
-                last_editor=_parse_email(last_editor_array),
-            )
-        )
+        comment = _parse_comment(raw_comment, issue_id, number_offset=0)
+        if comment is not None:
+            comments.append(comment)
 
     return CommentsResult(
         comments=comments,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import asyncio
 import typing as t
@@ -49,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "-t",
         "--tracker",
         action="append",
-        choices=[t["name"] for t in TRACKERS],
+        choices=[tracker["name"] for tracker in TRACKERS],
         help="tracker name (repeatable). Defaults to all",
     )
     parser.add_argument(
@@ -71,12 +73,6 @@ def parse_args() -> argparse.Namespace:
         action="append",
         choices=["csv", "json", "html"],
         help="export format (repeatable)",
-    )
-    parser.add_argument(
-        "-p",
-        "--pager",
-        action="store_true",
-        help="page output through the system pager (needs a styled pager, e.g. less -R)",
     )
     parser.add_argument(
         "--debug",
@@ -183,7 +179,10 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
                     f"[dim]Collected [cyan]{len(issues)}[/] of [cyan]{limit}[/] issues…[/dim]"
                 )
 
-                result = await client.next_page(result)
+                next_result = await client.next_page(result)
+                if next_result is None:
+                    break
+                result = next_result
                 issues.extend(result.issues)
         issues = issues[:limit]
 
@@ -192,13 +191,10 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     console.log(
         f"{OK} Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
     )
-    if args.pager:
-        # Rich's Status redirects sys.stdout, which makes the pager (and the
-        # TTY check) see a non-tty. Stop it first so paging can take over.
-        status.stop()
-    print_and_export(
-        data=issues, formats=args.export, fields=fields, pager=args.pager
-    )
+    # Rich's Status redirects sys.stdout, which makes the pager (and the
+    # TTY check) see a non-tty. Stop it first so paging can take over.
+    status.stop()
+    print_and_export(output=issues, formats=args.export, fields=fields)
 
     if result.has_more:
         print()
@@ -219,11 +215,8 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     issue = await client.issue(issue_id=issue_id)
     fields = resolve_fields(args=args)
 
-    if args.pager:
-        status.stop()  # restore stdout so the pager works (Status redirects it)
-    print_and_export(
-        data=issue, formats=args.export, fields=fields, pager=args.pager
-    )
+    status.stop()  # restore stdout so the pager works (Status redirects it)
+    print_and_export(output=issue, formats=args.export, fields=fields)
 
 
 async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
@@ -240,11 +233,8 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     issues = await client.issues(issue_ids=issue_ids)
     fields = resolve_fields(args=args)
 
-    if args.pager:
-        status.stop()  # restore stdout so the pager works (Status redirects it)
-    print_and_export(
-        data=issues, formats=args.export, fields=fields, pager=args.pager
-    )
+    status.stop()  # restore stdout so the pager works (Status redirects it)
+    print_and_export(output=issues, formats=args.export, fields=fields)
 
 
 async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
@@ -261,14 +251,12 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
     status.update(status=f"[dim]Getting comments for issue {issue_id}…[/]")
     result = await client.comments(issue_id=issue_id)
 
-    if args.pager:
-        status.stop()  # restore stdout so the pager works (Status redirects it)
+    status.stop()  # restore stdout so the pager works (Status redirects it)
     console.print(f"Issue #{issue_id} — {len(result.comments)} comments\n")
-    print_and_export(
-        data=result.comments, formats=args.export, pager=args.pager
-    )
+    print_and_export(output=result.comments, formats=args.export)
 
 
+# noinspection PyUnusedLocal
 async def cmd_echo(client: Buganize, args: argparse.Namespace, status: Status):
     """
     Handle the 'echo' subcommand: ping the backend and print its response.

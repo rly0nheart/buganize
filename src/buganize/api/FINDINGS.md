@@ -1,6 +1,6 @@
 # Authenticated API Findings
 
-> **Last updated:** 15 05 2026, 16:40:43
+> **Last updated:** 16 06 2026, 17:10:55
 
 Discoveries from intercepting browser traffic (mitmproxy/mitmweb) while authenticated
 on `issuetracker.google.com`. These supplement the main `README.md` which
@@ -81,13 +81,13 @@ data[0] = ["b.ListIssueCommentsResponse", [COMMENTS, PAGE_TOKEN, TOTAL_COUNT]]
 **Comment array (18 elements):**
 
 Same format as comments from the `/updates` endpoint. Comment arrays are
-19 elements (indices 0 to 18).
+18 elements (indices 0 to 17).
 
 | Index  | Field           | Type            | Notes                                                                 |
 |--------|-----------------|-----------------|-----------------------------------------------------------------------|
 | `[0]`  | body            | `str`           | Comment text                                                          |
 | `[2]`  | author          | user array      | Comment author                                                        |
-| `[3]`  | timestamp       | `[secs, nanos]` | When the comment was posted                                           |
+| `[3]`  | modified_at     | `[secs, nanos]` | When the comment was last modified (equals `[18]` if never edited)    |
 | `[4]`  | (unknown)       | `list`          | Always `[]`                                                           |
 | `[5]`  | issue_id        | `int`           | Parent issue ID                                                       |
 | `[6]`  | sequence_number | `int`           | **1-indexed** comment number (unlike `/updates` where it's 0-indexed) |
@@ -95,6 +95,7 @@ Same format as comments from the `/updates` endpoint. Comment arrays are
 | `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                     |
 | `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches |
 | `[17]` | last_editor     | user array      | Possibly the last person to edit this comment                         |
+| `[18]` | created_at      | `[secs, nanos]` | Original post time. Confirmed via 491 live comments: `[18] <= [3]` always; `[18] < [3]` exactly when the comment was edited (including author self-edits, which leave `last_editor` unchanged) |
 
 **Example — fetch first 3 comments (oldest first) for issue 496840714:**
 

@@ -1,6 +1,6 @@
 # Google Issue Tracker (Buganizer)  API Reference
 
-> **Last updated:** 15 05 2026, 16:40:43
+> **Last updated:** 16 06 2026, 17:10:55
 
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
@@ -825,7 +825,7 @@ When an update includes a comment, `update[2]` is a 19-element array
 | `[0]`  | body            | `str`           | Comment text                                                          |
 | `[1]`  | (unknown)       | —               | —                                                                     |
 | `[2]`  | author          | user array      | Comment author                                                        |
-| `[3]`  | timestamp       | `[secs, nanos]` | When the comment was posted                                           |
+| `[3]`  | modified_at     | `[secs, nanos]` | When the comment was last modified (equals `[18]` if never edited)    |
 | `[4]`  | (unknown)       | `list`          | Always `[]`                                                           |
 | `[5]`  | issue_id        | `int`           | Parent issue ID                                                       |
 | `[6]`  | sequence_number | `int`           | **0-indexed** comment number (add 1 for display)                      |
@@ -833,6 +833,7 @@ When an update includes a comment, `update[2]` is a 19-element array
 | `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                     |
 | `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches |
 | `[17]` | last_editor     | user array      | Last person to edit the comment (equals `author` if never edited)     |
+| `[18]` | created_at      | `[secs, nanos]` | Original post time. Equals `[3]` unless edited, when `[3]` is later; a self-edit moves `[3]` past `[18]` while `last_editor` stays the author |
 
 ## Field Changes
 

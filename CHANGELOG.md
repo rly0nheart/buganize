@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-06-16
+
+### Added
+
+- _Comment.created_at_: a comment's original post time.
+
+### Changed
+
+- Require at least Python 3.13 or later
+- Comment dates now display in your local timezone and locale.
+
+### Fixed
+
+- _Comment.is_edited_ now detects author self-edits.
+
+### Removed
+
+- GTK GUI
+- _--pager_ option: output will be pages by default
+
 ## [1.9.0] - 2026-06-01
 
 ### Added

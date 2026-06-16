@@ -17,6 +17,22 @@ from ..api.models import Comment, EXTRA_FIELDS, Issue
 __all__ = ["print_trackers", "print_and_export"]
 
 
+def _comment_date(comment: Comment) -> str:
+    """
+    Format a comment's date in the local timezone and locale.
+
+    Prefers the creation time, falling back to the last-modified timestamp.
+    ``astimezone()`` (no arg) converts the UTC value to the system's local
+    zone; ``%x %X`` renders it using the locale's date/time format.
+
+    :param comment: The comment to format.
+    :return: Locale-formatted local date/time, or "" if no timestamp.
+    """
+
+    when = comment.created_at or comment.timestamp
+    return when.astimezone().strftime("%x %X") if when else ""
+
+
 def _column_header(key: str) -> str:
     """
     Derive a column header from a field key.
@@ -39,7 +55,7 @@ def _make_table(
     :return: A configured Rich table ready for rows.
     """
 
-    table = Table(box=box.ASCII, highlight=True, expand=expand)
+    table = Table(box=box.SIMPLE, highlight=True, expand=expand)
 
     for header, col_kwargs in columns:
         table.add_column(header, **col_kwargs)
@@ -76,24 +92,22 @@ def print_trackers(trackers: list[dict[str, str | int]]):
 
 
 def print_and_export(
-        data: list | object,
+        output: list[Issue] | list[Comment] | Issue,
         formats: list[str] | None = None,
         fields: list[str] | None = None,
-        pager: bool = False,
 ):
     """
     Print data to the console and optionally export to file.
 
-    :param data: Issues, comments, or a single issue to display.
+    :param output: Issues, comments, or a single issue to display.
     :param formats: Export format strings (e.g. ``["csv", "json"]``), or ``None`` to skip.
     :param fields: Extra field names to include (issues only).
-    :param pager: Page the rendered output through the system pager.
     """
 
-    PrintOutput(data=data).print(fields=fields, pager=pager)
+    PrintOutput(output=output).print(fields=fields)
 
     if formats:
-        items = [data] if not isinstance(data, list) else data
+        items = [output] if not isinstance(output, list) else output
         rows = FormatOutput(items=items).to_rows(fields=fields)
         SaveOutput(rows=rows).save(formats=formats)
 
@@ -243,14 +257,14 @@ class PrintOutput:
     - ``Issue`` → :meth:`issue` (single-issue detail view)
     - ``list[Comment]`` → :meth:`comments` (comment table)
 
-    :param data: The data to render. Accepted types are a list of issues,
+    :param output: The output to render. Accepted types are a list of issues,
         a single issue, or a list of comments.
     """
 
-    def __init__(self, data: list[Issue] | list[Comment] | Issue):
-        self.data = data
+    def __init__(self, output: list[Issue] | list[Comment] | Issue):
+        self.output = output
 
-    def print(self, fields: list[str] | None = None, pager: bool = False):
+    def print(self, fields: list[str] | None = None):
         """
         Print data as a Rich table, dispatching based on data type.
 
@@ -259,30 +273,23 @@ class PrintOutput:
         data, use :meth:`trackers` directly instead.
 
         :param fields: Extra field names to include as columns (issues only).
-        :param pager: Page the rendered output through the system pager.
         """
 
-        if not self.data:
+        if not self.output:
             return
 
-        # Paging is applied here (around the whole render) rather than inside
-        # each method so it covers every view uniformly. ``styles=True`` keeps
-        # ANSI colours; the pager must support them (e.g. ``less -R``). Paging
-        # only works on a real terminal, so warn and fall back to plain output
-        # when stdout isn't a TTY.
-        ctx = nullcontext()
-        if pager:
-            if console.is_terminal:
-                ctx = console.pager(styles=True)
-            else:
-                console.print(f"{WARN} Not a TTY — output won't be paged.")
+        context = nullcontext()
+        if console.is_terminal:
+            context = console.pager(styles=True)
+        else:
+            console.print(f"{WARN} Not a TTY — output won't be paged.")
 
-        with ctx:
-            if isinstance(self.data, Issue):
+        with context:
+            if isinstance(self.output, Issue):
                 self.issue(fields=fields)
-            elif all(isinstance(item, Issue) for item in self.data):
+            elif all(isinstance(item, Issue) for item in self.output):
                 self.issues(fields=fields)
-            elif all(isinstance(item, Comment) for item in self.data):
+            elif all(isinstance(item, Comment) for item in self.output):
                 self.comments()
 
     def issue(self, fields: list[str] | None = None):
@@ -301,118 +308,137 @@ class PrintOutput:
         def is_shown(field_name: str) -> bool:
             return all_fields or field_name in enabled_fields
 
-        # Basic fields (always shown).
-        console.print(f"\nIssue #{self.data.id}")
-        console.print(f"  URL:           {self.data.url}")
-        console.print(f"  Title:         {self.data.title}")
-        console.print(f"  Status:        {self.data.status.name}")
-        console.print(f"  Priority:      {self.data.priority.name}")
-        if self.data.severity is not None:
-            console.print(f"  Severity:      {self.data.severity.name}")
-        if self.data.issue_type:
-            console.print(f"  Type:          {self.data.issue_type.name}")
-        if self.data.reporter:
-            console.print(f"  Reporter:      {self.data.reporter}")
-        if self.data.owner:
-            console.print(f"  Owner:         {self.data.owner}")
-        if self.data.component_id:
-            console.print(f"  Component:     {self.data.component_id}")
-        if self.data.created_at:
-            console.print(f"  Created:       {self.data.created_at.isoformat()}")
-        if self.data.modified_at:
-            console.print(f"  Modified:      {self.data.modified_at.isoformat()}")
-        if is_shown("last_activity") and self.data.last_activity_at:
-            console.print(f"  Last Activity: {self.data.last_activity_at.isoformat()}")
-        console.print(f"  Comments:      {self.data.comment_count}")
-        if self.data.body:
-            console.print()
-            console.print(
-                Panel(Markdown(self.data.body), title="Description", border_style="dim")
-            )
+        if isinstance(self.output, Issue):
+            # Basic fields (always shown).
+            console.print(f"\nIssue #{self.output.id}")
+            console.print(f"  URL:           {self.output.url}")
+            console.print(f"  Title:         {self.output.title}")
+            console.print(f"  Status:        {self.output.status.name}")
+            console.print(f"  Priority:      {self.output.priority.name}")
+            if self.output.severity is not None:
+                console.print(f"  Severity:      {self.output.severity.name}")
+            if self.output.issue_type:
+                console.print(f"  Type:          {self.output.issue_type.name}")
+            if self.output.reporter:
+                console.print(f"  Reporter:      {self.output.reporter}")
+            if self.output.owner:
+                console.print(f"  Owner:         {self.output.owner}")
+            if self.output.component_id:
+                console.print(f"  Component:     {self.output.component_id}")
+            if self.output.created_at:
+                console.print(f"  Created:       {self.output.created_at.isoformat()}")
+            if self.output.modified_at:
+                console.print(f"  Modified:      {self.output.modified_at.isoformat()}")
+            if is_shown("last_activity") and self.output.last_activity_at:
+                console.print(
+                    f"  Last Activity: {self.output.last_activity_at.isoformat()}"
+                )
+            console.print(f"  Comments:      {self.output.comment_count}")
+            if self.output.body:
+                console.print()
+                console.print(
+                    Panel(
+                        Markdown(self.output.body),
+                        title="Description",
+                        border_style="dim",
+                    )
+                )
 
-        # Extra fields (only when requested).
-        if is_shown("verifier") and self.data.verifier:
-            console.print(f"  Verifier:      {self.data.verifier}")
-        if is_shown("tags") and self.data.component_tags:
-            console.print(f"  Comp. Tags:    {', '.join(self.data.component_tags)}")
-        if is_shown("ancestor_tags") and self.data.component_ancestor_tags:
-            console.print(
-                f"  Ancestor Tags: {', '.join(self.data.component_ancestor_tags)}"
-            )
-        if is_shown("labels") and self.data.labels:
-            console.print(f"  Labels:        {', '.join(self.data.labels)}")
-        if is_shown("os") and self.data.os:
-            console.print(f"  OS:            {', '.join(self.data.os)}")
-        if is_shown("milestone") and self.data.milestone:
-            console.print(f"  Milestone:     {', '.join(self.data.milestone)}")
-        if is_shown("ccs") and self.data.ccs:
-            console.print(f"  CCs:           {', '.join(self.data.ccs)}")
-        if is_shown("hotlists") and self.data.hotlist_ids:
-            console.print(
-                f"  Hotlists:      {', '.join(str(h) for h in self.data.hotlist_ids)}"
-            )
-        if is_shown("collaborators") and self.data.collaborators:
-            console.print(f"  Collaborators: {', '.join(self.data.collaborators)}")
-        if is_shown("found_in") and self.data.found_in:
-            console.print(f"  Found In:      {', '.join(self.data.found_in)}")
-        if is_shown("in_prod") and self.data.in_prod:
-            console.print(f"  In Prod:       Yes")
-        if is_shown("blocking") and self.data.blocking_issue_ids:
-            console.print(
-                f"  Blocking:      {', '.join(str(b) for b in self.data.blocking_issue_ids)}"
-            )
-        if is_shown("duplicates") and self.data.duplicate_issue_ids:
-            console.print(
-                f"  Duplicates:    {', '.join(str(d) for d in self.data.duplicate_issue_ids)}"
-            )
-        if is_shown("cve") and self.data.cve:
-            console.print(f"  CVE:           {', '.join(self.data.cve)}")
-        if is_shown("cwe") and self.data.cwe_id is not None:
-            console.print(f"  CWE ID:        {int(self.data.cwe_id)}")
-        if is_shown("build") and self.data.build_number:
-            console.print(f"  Build:         {self.data.build_number}")
-        if is_shown("introduced_in") and self.data.introduced_in:
-            console.print(f"  Introduced In: {self.data.introduced_in}")
-        if is_shown("merge") and self.data.merge:
-            console.print(f"  Merge:         {', '.join(self.data.merge)}")
-        if is_shown("merge_request") and self.data.merge_request:
-            console.print(f"  Merge Req.:    {', '.join(self.data.merge_request)}")
-        if is_shown("release_block") and self.data.release_block:
-            console.print(f"  Release Block: {', '.join(self.data.release_block)}")
-        if is_shown("notice") and self.data.notice:
-            console.print(f"  Notice:        {self.data.notice}")
-        if is_shown("flaky_test") and self.data.flaky_test:
-            console.print(f"  Flaky Test:    {self.data.flaky_test}")
-        if is_shown("est_days") and self.data.estimated_days is not None:
-            console.print(f"  Est. Days:     {self.data.estimated_days}")
-        if is_shown("next_action") and self.data.next_action:
-            console.print(f"  Next Action:   {self.data.next_action}")
-        if is_shown("vrp_reward") and self.data.vrp_reward is not None:
-            console.print(f"  VRP Reward:    {self.data.vrp_reward}")
-        if is_shown("irm_link") and self.data.irm_link:
-            console.print(f"  IRM Link:      {self.data.irm_link}")
-        if is_shown("sec_release") and self.data.security_release:
-            console.print(f"  Sec. Release:  {', '.join(self.data.security_release)}")
-        if is_shown("fixed_by") and self.data.fixed_by_code_changes:
-            console.print(
-                f"  Fixed By:      {', '.join(self.data.fixed_by_code_changes)}"
-            )
-        if is_shown("verified") and self.data.verified_at:
-            console.print(f"  Verified:      {self.data.verified_at.isoformat()}")
-        if is_shown("stars"):
-            console.print(f"  Stars:         {self.data.star_count}")
-        if is_shown("last_modifier") and self.data.last_modifier:
-            console.print(f"  Last Modifier: {self.data.last_modifier}")
-        if is_shown("24h_views") and self.data.views_24h:
-            console.print(f"  24h Views:     {self.data.views_24h}")
-        if is_shown("7d_views") and self.data.views_7d:
-            console.print(f"  7d Views:      {self.data.views_7d}")
-        if is_shown("30d_views") and self.data.views_30d:
-            console.print(f"  30d Views:     {self.data.views_30d}")
-        if all_fields and self.data.custom_fields:
-            console.print(f"  Other Fields:")
-            for key, value in self.data.custom_fields.items():
-                console.print(f"    {key}: {value}")
+            # Extra fields (only when requested).
+            if is_shown("verifier") and self.output.verifier:
+                console.print(f"  Verifier:      {self.output.verifier}")
+            if is_shown("tags") and self.output.component_tags:
+                console.print(
+                    f"  Comp. Tags:    {', '.join(self.output.component_tags)}"
+                )
+            if is_shown("ancestor_tags") and self.output.component_ancestor_tags:
+                console.print(
+                    f"  Ancestor Tags: {', '.join(self.output.component_ancestor_tags)}"
+                )
+            if is_shown("labels") and self.output.labels:
+                console.print(f"  Labels:        {', '.join(self.output.labels)}")
+            if is_shown("os") and self.output.os:
+                console.print(f"  OS:            {', '.join(self.output.os)}")
+            if is_shown("milestone") and self.output.milestone:
+                console.print(f"  Milestone:     {', '.join(self.output.milestone)}")
+            if is_shown("ccs") and self.output.ccs:
+                console.print(f"  CCs:           {', '.join(self.output.ccs)}")
+            if is_shown("hotlists") and self.output.hotlist_ids:
+                console.print(
+                    f"  Hotlists:      {', '.join(str(h) for h in self.output.hotlist_ids)}"
+                )
+            if is_shown("collaborators") and self.output.collaborators:
+                console.print(
+                    f"  Collaborators: {', '.join(self.output.collaborators)}"
+                )
+            if is_shown("found_in") and self.output.found_in:
+                console.print(f"  Found In:      {', '.join(self.output.found_in)}")
+            if is_shown("in_prod") and self.output.in_prod:
+                console.print("  In Prod:       Yes")
+            if is_shown("blocking") and self.output.blocking_issue_ids:
+                console.print(
+                    f"  Blocking:      {', '.join(str(b) for b in self.output.blocking_issue_ids)}"
+                )
+            if is_shown("duplicates") and self.output.duplicate_issue_ids:
+                console.print(
+                    f"  Duplicates:    {', '.join(str(d) for d in self.output.duplicate_issue_ids)}"
+                )
+            if is_shown("cve") and self.output.cve:
+                console.print(f"  CVE:           {', '.join(self.output.cve)}")
+            if is_shown("cwe") and self.output.cwe_id is not None:
+                console.print(f"  CWE ID:        {int(self.output.cwe_id)}")
+            if is_shown("build") and self.output.build_number:
+                console.print(f"  Build:         {self.output.build_number}")
+            if is_shown("introduced_in") and self.output.introduced_in:
+                console.print(f"  Introduced In: {self.output.introduced_in}")
+            if is_shown("merge") and self.output.merge:
+                console.print(f"  Merge:         {', '.join(self.output.merge)}")
+            if is_shown("merge_request") and self.output.merge_request:
+                console.print(
+                    f"  Merge Req.:    {', '.join(self.output.merge_request)}"
+                )
+            if is_shown("release_block") and self.output.release_block:
+                console.print(
+                    f"  Release Block: {', '.join(self.output.release_block)}"
+                )
+            if is_shown("notice") and self.output.notice:
+                console.print(f"  Notice:        {self.output.notice}")
+            if is_shown("flaky_test") and self.output.flaky_test:
+                console.print(f"  Flaky Test:    {self.output.flaky_test}")
+            if is_shown("est_days") and self.output.estimated_days is not None:
+                console.print(f"  Est. Days:     {self.output.estimated_days}")
+            if is_shown("next_action") and self.output.next_action:
+                console.print(f"  Next Action:   {self.output.next_action}")
+            if is_shown("vrp_reward") and self.output.vrp_reward is not None:
+                console.print(f"  VRP Reward:    {self.output.vrp_reward}")
+            if is_shown("irm_link") and self.output.irm_link:
+                console.print(f"  IRM Link:      {self.output.irm_link}")
+            if is_shown("sec_release") and self.output.security_release:
+                console.print(
+                    f"  Sec. Release:  {', '.join(self.output.security_release)}"
+                )
+            if is_shown("fixed_by") and self.output.fixed_by_code_changes:
+                console.print(
+                    f"  Fixed By:      {', '.join(self.output.fixed_by_code_changes)}"
+                )
+            if is_shown("verified") and self.output.verified_at:
+                console.print(f"  Verified:      {self.output.verified_at.isoformat()}")
+            if is_shown("stars"):
+                console.print(f"  Stars:         {self.output.star_count}")
+            if is_shown("last_modifier") and self.output.last_modifier:
+                console.print(f"  Last Modifier: {self.output.last_modifier}")
+            if is_shown("24h_views") and self.output.views_24h:
+                console.print(f"  24h Views:     {self.output.views_24h}")
+            if is_shown("7d_views") and self.output.views_7d:
+                console.print(f"  7d Views:      {self.output.views_7d}")
+            if is_shown("30d_views") and self.output.views_30d:
+                console.print(f"  30d Views:     {self.output.views_30d}")
+            if all_fields and self.output.custom_fields:
+                console.print("  Other Fields:")
+                for key, value in self.output.custom_fields.items():
+                    console.print(f"    {key}: {value}")
+        else:
+            raise TypeError(f"Output is not of type {Issue.__name__}")
 
     def issues(self, fields: list[str] | None = None):
         """
@@ -421,41 +447,51 @@ class PrintOutput:
         :param fields: Extra field names to include as columns.
         """
 
-        extra = fields or []
-        extra_columns = [
-            (_column_header(key=field), {}) for field in extra if field in EXTRA_FIELDS
-        ]
-        table = _make_table(
-            columns=[
-                ("#", {"justify": "right"}),
-                ("Priority", {}),
-                ("ID", {"justify": "right"}),
-                ("Type", {}),
-                ("Title", {"overflow": "fold"}),
-                ("Status", {}),
-                ("Modified", {"justify": "right"}),
-                *extra_columns,
-            ],
-            expand=True,
-        )
+        if isinstance(self.output, list) and all(
+                isinstance(issue, Issue) for issue in self.output
+        ):
 
-        for index, issue in enumerate(self.data, start=1):
-            row = [
-                str(index),
-                issue.priority.name,
-                str(issue.id),
-                issue.issue_type.name,  # if issue.issue_type else "",
-                issue.title,
-                issue.status.name.lower(),
-                issue.modified_at.strftime("%x %X"),  # if issue.modified_at else "",
+            extra = fields or []
+            extra_columns = [
+                (_column_header(key=field), {})
+                for field in extra
+                if field in EXTRA_FIELDS
             ]
-            for field_name in extra:
-                if field_name in EXTRA_FIELDS:
-                    getter = EXTRA_FIELDS[field_name]
-                    row.append(str(getter(issue) or ""))
-            table.add_row(*row)
+            table = _make_table(
+                columns=[
+                    ("#", {"justify": "right"}),
+                    ("Priority", {}),
+                    ("ID", {"justify": "right"}),
+                    ("Type", {}),
+                    ("Title", {"overflow": "fold"}),
+                    ("Status", {}),
+                    ("Modified", {"justify": "right"}),
+                    *extra_columns,
+                ],
+                expand=True,
+            )
 
-        console.print(table)
+            for index, issue in enumerate(
+                    t.cast(list[Issue], self.output), start=1
+            ):
+                row = [
+                    str(index),
+                    issue.priority.name,
+                    str(issue.id),
+                    issue.issue_type.name,  # if issue.issue_type else "",
+                    issue.title,
+                    issue.status.name.lower(),
+                    issue.modified_at.strftime(
+                        "%x %X"
+                    ),  # if issue.modified_at else "",
+                ]
+                for field_name in extra:
+                    if field_name in EXTRA_FIELDS:
+                        getter = EXTRA_FIELDS[field_name]
+                        row.append(str(getter(issue) or ""))
+                table.add_row(*row)
+
+            console.print(table)
 
     def comments(self):
         """
@@ -472,18 +508,14 @@ class PrintOutput:
             expand=True,
         )
 
-        for comment in self.data:
+        for comment in t.cast(list[Comment], self.output):
             author = comment.author or "unknown"
             if comment.is_edited:
                 author = f"{author} (edited)"
             table.add_row(
                 str(comment.comment_number),
                 author,
-                (
-                    comment.timestamp.strftime("%Y-%m-%d %H:%M UTC")
-                    if comment.timestamp
-                    else ""
-                ),
+                _comment_date(comment),
                 comment.body,
             )
 
@@ -565,9 +597,7 @@ class ConvertOutput:
                 {
                     "#": comment.comment_number,
                     "Author": comment.author or "unknown",
-                    "Date": (
-                        comment.timestamp.strftime("%x %X") if comment.timestamp else ""
-                    ),
+                    "Date": _comment_date(comment),
                     "Body": comment.body,
                     "Last Editor": comment.last_editor or "",
                     "Edited": comment.is_edited,

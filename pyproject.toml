@@ -1,10 +1,10 @@
 [project]
 name = "buganize"
-version = "1.9.2"
+version = "1.10.0"
 description = "Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 authors = [
     { name = "Ritchie Mwewa", email = "hi@rly0nheart.com" },
 ]
