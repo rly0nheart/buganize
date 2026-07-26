@@ -6,17 +6,17 @@ import typing as t
 import httpx
 
 from .parser import (
-    parse_batch_response,
-    parse_comments_response,
-    parse_issue_detail_response,
-    parse_search_response,
-    parse_updates_response,
+    __parse_batch_response as parse_batch_response,
+    __parse_comments_response as parse_comments_response,
+    __parse_issue_detail_response as parse_issue_detail_response,
+    __parse_search_response as parse_search_response,
+    __parse_updates_response as parse_updates_response,
 )
 
 if t.TYPE_CHECKING:
     from httpx import Response
 
-    from .models import CommentsResult, Issue, IssueUpdatesResult, SearchResult
+    from .models import CommentsResult, Issue, IssueUpdatesResult, Results, SearchResult
 
 __all__ = ["Buganize", "TRACKERS"]
 
@@ -297,12 +297,13 @@ class Buganize:
         response.raise_for_status()
         return parse_issue_detail_response(raw_text=response.text)
 
-    async def issues(self, issue_ids: list[int]) -> list[Issue]:
+    async def issues(self, issue_ids: list[int]) -> Results[Issue]:
         """
         Fetch multiple issues by ID in a single request.
 
         :param issue_ids: List of issue IDs to fetch.
-        :return: The fetched issues (order may not match input).
+        :return: The fetched issues (order may not match input), as a list that
+            writes itself out via ``to_json()``/``to_csv()``.
         """
 
         request_body: list = ["b.BatchGetIssuesRequest", None, None, [issue_ids, 2, 2]]

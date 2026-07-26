@@ -12,13 +12,14 @@ from ..api.models import (
     IssueUpdate,
     IssueUpdatesResult,
     Priority,
+    Results,
     SearchResult,
     Severity,
     Status,
 )
 
 
-def strip_response_prefix(raw_text: str) -> str:
+def __strip_response_prefix(raw_text: str) -> str:
     """
     Remove the )]}' anti-XSSI prefix that the API prepends to all JSON responses.
 
@@ -32,7 +33,7 @@ def strip_response_prefix(raw_text: str) -> str:
     return raw_text
 
 
-def parse_json_response(raw_text: str) -> Any:
+def __parse_json_response(raw_text: str) -> Any:
     """
     Strip the anti-XSSI prefix and parse the JSON body.
 
@@ -40,10 +41,10 @@ def parse_json_response(raw_text: str) -> Any:
     :return: The parsed JSON (usually a nested list).
     """
 
-    return json.loads(strip_response_prefix(raw_text))
+    return json.loads(__strip_response_prefix(raw_text))
 
 
-def _safe_get(array: Any, *indices: int, default=None) -> Any:
+def __get(array: Any, *indices: int, default=None) -> Any:
     """
     Safely traverse nested arrays/lists by index.
 
@@ -62,7 +63,7 @@ def _safe_get(array: Any, *indices: int, default=None) -> Any:
     return current
 
 
-def _parse_timestamp(raw_timestamp: Any) -> datetime | None:
+def __parse_timestamp(raw_timestamp: Any) -> datetime | None:
     """
     Parse a [seconds, nanos] timestamp array into a UTC datetime.
 
@@ -84,7 +85,7 @@ def _parse_timestamp(raw_timestamp: Any) -> datetime | None:
         return None
 
 
-def _parse_email(user_array: Any) -> str | None:
+def __parse_email(user_array: Any) -> str | None:
     """
     Extract an email address from a user field array.
 
@@ -103,7 +104,7 @@ def _parse_email(user_array: Any) -> str | None:
     return None
 
 
-def _parse_ccs(raw_ccs: Any) -> list[str]:
+def __parse_ccs(raw_ccs: Any) -> list[str]:
     """
     Parse a CC list where each entry is a user array like [null, "email", type].
 
@@ -115,13 +116,13 @@ def _parse_ccs(raw_ccs: Any) -> list[str]:
         return []
     emails = []
     for entry in raw_ccs:
-        email = _parse_email(entry)
+        email = __parse_email(entry)
         if email:
             emails.append(email)
     return emails
 
 
-def _parse_int_list(raw_list: Any) -> list[int]:
+def __parse_int_list(raw_list: Any) -> list[int]:
     """
     Extract integers from a list, ignoring non-int values.
 
@@ -134,7 +135,7 @@ def _parse_int_list(raw_list: Any) -> list[int]:
     return [item for item in raw_list if isinstance(item, int)]
 
 
-def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
+def __parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
     """
     Parse custom field value entries from the issue details array at [2][14].
 
@@ -163,16 +164,16 @@ def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
         field_id = entry[0]
         field_name = CUSTOM_FIELD_IDS.get(field_id, f"field_{field_id}")
 
-        display_string = _safe_get(entry, 9)
+        display_string = __get(entry, 9)
 
         # Numeric value at index 4.
-        numeric_value = _safe_get(entry, 4)
+        numeric_value = __get(entry, 4)
         if isinstance(numeric_value, (int, float)):
             parsed_fields[field_name] = numeric_value
             continue
 
         # Multi-value labels at index 5: [[val1, val2, ...]]
-        label_values = _safe_get(entry, 5)
+        label_values = __get(entry, 5)
         if label_values and isinstance(label_values, list):
             flat_labels = []
             for group in label_values:
@@ -185,7 +186,7 @@ def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
                 continue
 
         # Enum-like values at index 7: [[val1, val2, ...]]
-        enum_values = _safe_get(entry, 7)
+        enum_values = __get(entry, 7)
         if enum_values and isinstance(enum_values, list):
             flat_enums = []
             for group in enum_values:
@@ -204,7 +205,7 @@ def _parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
     return parsed_fields
 
 
-def parse_issue_from_entry(raw_entry: list) -> Issue:
+def __parse_issue_from_entry(raw_entry: list) -> Issue:
     """
     Parse a single issue from the 48-element array format used across all endpoints.
 
@@ -251,47 +252,47 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     :return: A fully populated Issue dataclass.
     """
 
-    issue_id = _safe_get(raw_entry, 1, default=0)
-    details = _safe_get(raw_entry, 2, default=[]) or []
+    issue_id = __get(raw_entry, 1, default=0)
+    details = __get(raw_entry, 2, default=[]) or []
 
     # --- Details array fields ---
-    component_id = _safe_get(details, 0)
-    issue_type_detail = _safe_get(details, 1)
-    status_value = _safe_get(details, 2, default=1)
-    priority_raw = _safe_get(details, 3, default=3)  # 1-indexed: P0=1, P1=2, ...
+    component_id = __get(details, 0)
+    issue_type_detail = __get(details, 1)
+    status_value = __get(details, 2, default=1)
+    priority_raw = __get(details, 3, default=3)  # 1-indexed: P0=1, P1=2, ...
     # Convert 1-indexed API priority to 0-indexed enum (P0=0, P1=1, ...)
     priority_value = (priority_raw - 1) if isinstance(priority_raw, int) else 2
-    severity_raw = _safe_get(details, 4)  # 1-indexed: S0=1, S1=2, ...
-    title = _safe_get(details, 5, default="") or ""
-    reporter_array = _safe_get(details, 6)
-    verifier_array = _safe_get(details, 7)
-    ccs_array = _safe_get(details, 9)
-    hotlist_ids_array = _safe_get(details, 13)
-    custom_field_entries = _safe_get(details, 14)
-    found_in_raw = _safe_get(details, 16)
-    in_prod_raw = _safe_get(details, 19)
-    duplicate_ids_array = _safe_get(details, 21)
-    collaborators_array = _safe_get(details, 30)
+    severity_raw = __get(details, 4)  # 1-indexed: S0=1, S1=2, ...
+    title = __get(details, 5, default="") or ""
+    reporter_array = __get(details, 6)
+    verifier_array = __get(details, 7)
+    ccs_array = __get(details, 9)
+    hotlist_ids_array = __get(details, 13)
+    custom_field_entries = __get(details, 14)
+    found_in_raw = __get(details, 16)
+    in_prod_raw = __get(details, 19)
+    duplicate_ids_array = __get(details, 21)
+    collaborators_array = __get(details, 30)
 
     # --- Top-level fields ---
-    created_timestamp = _safe_get(raw_entry, 4)
-    modified_timestamp = _safe_get(raw_entry, 5)
-    verified_timestamp = _safe_get(raw_entry, 6)
-    last_activity_timestamp = _safe_get(raw_entry, 34)
-    star_count = _safe_get(raw_entry, 9, default=0)
+    created_timestamp = __get(raw_entry, 4)
+    modified_timestamp = __get(raw_entry, 5)
+    verified_timestamp = __get(raw_entry, 6)
+    last_activity_timestamp = __get(raw_entry, 34)
+    star_count = __get(raw_entry, 9, default=0)
     if not isinstance(star_count, int):
         star_count = 0
-    comment_count = _safe_get(raw_entry, 11, default=0) or 0
-    owner_array = _safe_get(raw_entry, 13)
-    blocking_ids_array = _safe_get(raw_entry, 36)
-    body_array = _safe_get(raw_entry, 43)
+    comment_count = __get(raw_entry, 11, default=0) or 0
+    owner_array = __get(raw_entry, 13)
+    blocking_ids_array = __get(raw_entry, 36)
+    body_array = __get(raw_entry, 43)
     body = body_array[0] if isinstance(body_array, list) and body_array else None
-    tracker_id = _safe_get(raw_entry, 41)
-    views_array = _safe_get(raw_entry, 46, default=[]) or []
-    last_modifier_array = _safe_get(raw_entry, 47)
+    tracker_id = __get(raw_entry, 41)
+    views_array = __get(raw_entry, 46, default=[]) or []
+    last_modifier_array = __get(raw_entry, 47)
 
     # --- Parse custom fields into a mutable dict, then pop known ones ---
-    custom_fields = _parse_custom_field_values(custom_field_entries)
+    custom_fields = __parse_custom_field_values(custom_field_entries)
 
     def pop_string_list(key: str) -> list[str]:
         """
@@ -377,26 +378,26 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
         priority=Priority(priority_value),
         severity=severity_value,
         issue_type=IssueType(issue_type_detail) if issue_type_detail else None,
-        reporter=_parse_email(reporter_array),
-        owner=_parse_email(owner_array),
-        verifier=_parse_email(verifier_array),
+        reporter=__parse_email(reporter_array),
+        owner=__parse_email(owner_array),
+        verifier=__parse_email(verifier_array),
         component_id=component_id,
-        ccs=_parse_ccs(ccs_array),
-        collaborators=_parse_ccs(collaborators_array),
+        ccs=__parse_ccs(ccs_array),
+        collaborators=__parse_ccs(collaborators_array),
         found_in=found_in,
         in_prod=in_prod,
-        created_at=_parse_timestamp(created_timestamp),
-        modified_at=_parse_timestamp(modified_timestamp),
-        verified_at=_parse_timestamp(verified_timestamp),
-        last_activity_at=_parse_timestamp(last_activity_timestamp),
+        created_at=__parse_timestamp(created_timestamp),
+        modified_at=__parse_timestamp(modified_timestamp),
+        verified_at=__parse_timestamp(verified_timestamp),
+        last_activity_at=__parse_timestamp(last_activity_timestamp),
         comment_count=comment_count,
         star_count=star_count,
         body=body,
         tracker_id=tracker_id,
-        last_modifier=_parse_email(last_modifier_array),
-        hotlist_ids=_parse_int_list(hotlist_ids_array),
-        blocking_issue_ids=_parse_int_list(blocking_ids_array),
-        duplicate_issue_ids=_parse_int_list(duplicate_ids_array),
+        last_modifier=__parse_email(last_modifier_array),
+        hotlist_ids=__parse_int_list(hotlist_ids_array),
+        blocking_issue_ids=__parse_int_list(blocking_ids_array),
+        duplicate_issue_ids=__parse_int_list(duplicate_ids_array),
         views_24h=views_24h,
         views_7d=views_7d,
         views_30d=views_30d,
@@ -424,7 +425,7 @@ def parse_issue_from_entry(raw_entry: list) -> Issue:
     )
 
 
-def parse_search_response(
+def __parse_search_response(
     raw_text: str,
     query: str = "",
     page_size: int = 50,
@@ -445,18 +446,20 @@ def parse_search_response(
     :return: Parsed issues with pagination info.
     """
 
-    data = parse_json_response(raw_text)
+    data = __parse_json_response(raw_text)
 
-    response_wrapper = _safe_get(data, 0, default=[])
-    result_block = _safe_get(response_wrapper, 6, default=[])
+    response_wrapper = __get(data, 0, default=[])
+    result_block = __get(response_wrapper, 6, default=[])
 
-    raw_issues = _safe_get(result_block, 0, default=[]) or []
-    page_token = _safe_get(result_block, 1)
-    total_count = _safe_get(result_block, 2, default=0) or 0
+    raw_issues = __get(result_block, 0, default=[]) or []
+    page_token = __get(result_block, 1)
+    total_count = __get(result_block, 2, default=0) or 0
 
-    issues = [
-        parse_issue_from_entry(entry) for entry in raw_issues if isinstance(entry, list)
-    ]
+    issues = Results(
+        __parse_issue_from_entry(entry)
+        for entry in raw_issues
+        if isinstance(entry, list)
+    )
 
     return SearchResult(
         issues=issues,
@@ -467,7 +470,7 @@ def parse_search_response(
     )
 
 
-def parse_issue_detail_response(raw_text: str) -> Issue:
+def __parse_issue_detail_response(raw_text: str) -> Issue:
     """
     Parse a getIssue response.
 
@@ -483,26 +486,26 @@ def parse_issue_detail_response(raw_text: str) -> Issue:
     :raises ValueError: If the issue entry can't be located in the response.
     """
 
-    data = parse_json_response(raw_text)
+    data = __parse_json_response(raw_text)
 
-    response_wrapper = _safe_get(data, 0, default=[])
-    payload = _safe_get(response_wrapper, 1, default=[])
+    response_wrapper = __get(data, 0, default=[])
+    payload = __get(response_wrapper, 1, default=[])
 
     issue_entry = None
     if isinstance(payload, list) and len(payload) > 0:
         for i in range(len(payload) - 1, -1, -1):
-            candidate = _safe_get(payload, i)
-            if isinstance(candidate, list) and isinstance(_safe_get(candidate, 1), int):
+            candidate = __get(payload, i)
+            if isinstance(candidate, list) and isinstance(__get(candidate, 1), int):
                 issue_entry = candidate
                 break
 
     if issue_entry is None:
         raise ValueError("Could not locate issue entry in getIssue response")
 
-    return parse_issue_from_entry(issue_entry)
+    return __parse_issue_from_entry(issue_entry)
 
 
-def parse_batch_response(raw_text: str) -> list[Issue]:
+def __parse_batch_response(raw_text: str) -> Results[Issue]:
     """
     Parse a batch get response.
 
@@ -516,20 +519,20 @@ def parse_batch_response(raw_text: str) -> list[Issue]:
     :return: List of parsed issues.
     """
 
-    data = parse_json_response(raw_text)
+    data = __parse_json_response(raw_text)
 
-    response_wrapper = _safe_get(data, 0, default=[])
-    entries_wrapper = _safe_get(response_wrapper, 2, default=[])
-    raw_issues = _safe_get(entries_wrapper, 0, default=[]) or []
+    response_wrapper = __get(data, 0, default=[])
+    entries_wrapper = __get(response_wrapper, 2, default=[])
+    raw_issues = __get(entries_wrapper, 0, default=[]) or []
 
-    return [
-        parse_issue_from_entry(entry)
+    return Results(
+        __parse_issue_from_entry(entry)
         for entry in raw_issues
-        if isinstance(entry, list) and isinstance(_safe_get(entry, 1), int)
-    ]
+        if isinstance(entry, list) and isinstance(__get(entry, 1), int)
+    )
 
 
-def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
+def __parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     """
     Parse field change entries from an update's changes array.
 
@@ -551,7 +554,7 @@ def _parse_field_changes(raw_changes: Any) -> list[FieldChange]:
     return changes
 
 
-def _parse_comment(
+def __parse_comment(
     raw_comment: Any, issue_id: int, number_offset: int = 1
 ) -> Comment | None:
     """
@@ -578,25 +581,25 @@ def _parse_comment(
     if not raw_comment or not isinstance(raw_comment, list):
         return None
 
-    comment_text = _safe_get(raw_comment, 0, default="") or ""
-    author_array = _safe_get(raw_comment, 2)
-    timestamp_array = _safe_get(raw_comment, 3)
-    sequence_number = _safe_get(raw_comment, 6, default=0) or 0
-    last_editor_array = _safe_get(raw_comment, 17)
-    created_array = _safe_get(raw_comment, 18)
+    comment_text = __get(raw_comment, 0, default="") or ""
+    author_array = __get(raw_comment, 2)
+    timestamp_array = __get(raw_comment, 3)
+    sequence_number = __get(raw_comment, 6, default=0) or 0
+    last_editor_array = __get(raw_comment, 17)
+    created_array = __get(raw_comment, 18)
 
     return Comment(
         issue_id=issue_id,
         comment_number=sequence_number + number_offset,
-        author=_parse_email(author_array),
-        timestamp=_parse_timestamp(timestamp_array),
-        created_at=_parse_timestamp(created_array),
+        author=__parse_email(author_array),
+        timestamp=__parse_timestamp(timestamp_array),
+        created_at=__parse_timestamp(created_array),
         body=comment_text,
-        last_editor=_parse_email(last_editor_array),
+        last_editor=__parse_email(last_editor_array),
     )
 
 
-def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
+def __parse_updates_response(raw_text: str) -> IssueUpdatesResult:
     """
     Parse a ListIssueUpdatesResponse (comments + field changes).
 
@@ -621,37 +624,37 @@ def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
     :return: Parsed updates with pagination info.
     """
 
-    data = parse_json_response(raw_text)
+    data = __parse_json_response(raw_text)
 
-    response_wrapper = _safe_get(data, 0, default=[])
-    result_block = _safe_get(response_wrapper, 1, default=[])
+    response_wrapper = __get(data, 0, default=[])
+    result_block = __get(response_wrapper, 1, default=[])
 
-    raw_updates = _safe_get(result_block, 0, default=[]) or []
-    page_token = _safe_get(result_block, 1)
-    total_count = _safe_get(result_block, 2, default=0) or 0
+    raw_updates = __get(result_block, 0, default=[]) or []
+    page_token = __get(result_block, 1)
+    total_count = __get(result_block, 2, default=0) or 0
 
-    updates = []
+    updates: Results[IssueUpdate] = Results()
     for update_entry in raw_updates:
         if not isinstance(update_entry, list):
             continue
 
-        issue_id = _safe_get(update_entry, 9, default=0) or 0
-        author_array = _safe_get(update_entry, 0)
-        timestamp_array = _safe_get(update_entry, 1)
-        comment_array = _safe_get(update_entry, 2)
-        sequence_number = _safe_get(update_entry, 3)
-        changes_array = _safe_get(update_entry, 5)
+        issue_id = __get(update_entry, 9, default=0) or 0
+        author_array = __get(update_entry, 0)
+        timestamp_array = __get(update_entry, 1)
+        comment_array = __get(update_entry, 2)
+        sequence_number = __get(update_entry, 3)
+        changes_array = __get(update_entry, 5)
 
-        comment = _parse_comment(comment_array, issue_id) if comment_array else None
+        comment = __parse_comment(comment_array, issue_id) if comment_array else None
 
         updates.append(
             IssueUpdate(
                 issue_id=issue_id,
                 sequence_number=sequence_number,
-                author=_parse_email(author_array),
-                timestamp=_parse_timestamp(timestamp_array),
+                author=__parse_email(author_array),
+                timestamp=__parse_timestamp(timestamp_array),
                 comment=comment,
-                field_changes=_parse_field_changes(changes_array),
+                field_changes=__parse_field_changes(changes_array),
             )
         )
 
@@ -662,7 +665,7 @@ def parse_updates_response(raw_text: str) -> IssueUpdatesResult:
     )
 
 
-def parse_comments_response(raw_text: str) -> CommentsResult:
+def __parse_comments_response(raw_text: str) -> CommentsResult:
     """
     Parse a ListIssueCommentsResponse.
 
@@ -677,20 +680,20 @@ def parse_comments_response(raw_text: str) -> CommentsResult:
     :return: Parsed comments with pagination info.
     """
 
-    data = parse_json_response(raw_text)
+    data = __parse_json_response(raw_text)
 
-    response_wrapper = _safe_get(data, 0, default=[])
-    result_block = _safe_get(response_wrapper, 1, default=[])
+    response_wrapper = __get(data, 0, default=[])
+    result_block = __get(response_wrapper, 1, default=[])
 
-    raw_comments = _safe_get(result_block, 0, default=[]) or []
-    page_token = _safe_get(result_block, 1)
-    total_count = _safe_get(result_block, 2, default=0) or 0
+    raw_comments = __get(result_block, 0, default=[]) or []
+    page_token = __get(result_block, 1)
+    total_count = __get(result_block, 2, default=0) or 0
 
-    comments = []
+    comments: Results[Comment] = Results()
     for raw_comment in raw_comments:
         # /listComments sequence numbers are already 1-indexed, so no offset.
-        issue_id = _safe_get(raw_comment, 5, default=0) or 0
-        comment = _parse_comment(raw_comment, issue_id, number_offset=0)
+        issue_id = __get(raw_comment, 5, default=0) or 0
+        comment = __parse_comment(raw_comment, issue_id, number_offset=0)
         if comment is not None:
             comments.append(comment)
 

@@ -8,31 +8,18 @@ from datetime import datetime
 
 from . import __pkg__, __version__
 from .console import console
-from .output import print_and_export
+from .output import export, pretty_print
 from .symbols import FAIL, OK
 from .update_checker import update_check
 from ..api.client import Buganize, TRACKERS
-from ..api.models import EXTRA_FIELDS
+from ..api.models import Results
 
 if t.TYPE_CHECKING:
     from rich.status import Status
 
+    from ..api.models import Issue
+
 __all__ = ["dispatch_client", "parse_args"]
-
-
-def resolve_fields(args: argparse.Namespace) -> list[str] | None:
-    """
-    Figure out which extra fields to display based on CLI args.
-
-    :param args: Parsed argparse namespace with .all and .show attributes.
-    :return: List of field names to show, or None for defaults only.
-    """
-
-    if getattr(args, "all", False):
-        return list(EXTRA_FIELDS.keys())
-    if getattr(args, "fields", None):
-        return args.fields
-    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,23 +42,10 @@ def parse_args() -> argparse.Namespace:
         help="tracker name (repeatable). Defaults to all",
     )
     parser.add_argument(
-        "-f",
-        "--fields",
-        action="append",
-        choices=list(EXTRA_FIELDS.keys()),
-        help="extra field to display (repeatable)",
-    )
-    parser.add_argument(
-        "-F",
-        "--all-fields",
-        action="store_true",
-        help="show all available fields",
-    )
-    parser.add_argument(
         "-e",
         "--export",
         action="append",
-        choices=["csv", "json", "html"],
+        choices=["csv", "json"],
         help="export format (repeatable)",
     )
     parser.add_argument(
@@ -170,7 +144,7 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
         f"[dim][bold]Searching [italic]{tracker_label}[/] issues for [bold green]{query}[/bold green]…[/dim]"
     )
     result = await client.search(query=query, page_size=per_page)
-    issues = list(result.issues)
+    issues: Results[Issue] = Results(result.issues)
 
     if limit is not None:
         if result.has_more:
@@ -184,9 +158,7 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
                     break
                 result = next_result
                 issues.extend(result.issues)
-        issues = issues[:limit]
-
-    fields = resolve_fields(args=args)
+        issues = Results(issues[:limit])
 
     console.log(
         f"{OK} Got {len(issues)} of ~{result.total_count}+ issues for '{query}'\n"
@@ -194,7 +166,9 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     # Rich's Status redirects sys.stdout, which makes the pager (and the
     # TTY check) see a non-tty. Stop it first so paging can take over.
     status.stop()
-    print_and_export(output=issues, formats=args.export, fields=fields)
+    pretty_print(output=issues)
+    if args.export:
+        export(output=issues, formats=args.export)
 
     if result.has_more:
         print()
@@ -213,10 +187,11 @@ async def cmd_issue(client: Buganize, args: argparse.Namespace, status: Status):
     issue_id = args.issue_id
     status.update(f"[dim]Getting issue {issue_id}…[/]")
     issue = await client.issue(issue_id=issue_id)
-    fields = resolve_fields(args=args)
 
     status.stop()  # restore stdout so the pager works (Status redirects it)
-    print_and_export(output=issue, formats=args.export, fields=fields)
+    pretty_print(output=issue)
+    if args.export:
+        export(output=issue, formats=args.export)
 
 
 async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status):
@@ -231,10 +206,11 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     issue_ids = args.issue_ids
     status.update(f"[dim]Getting issues {issue_ids}…[/]")
     issues = await client.issues(issue_ids=issue_ids)
-    fields = resolve_fields(args=args)
 
     status.stop()  # restore stdout so the pager works (Status redirects it)
-    print_and_export(output=issues, formats=args.export, fields=fields)
+    pretty_print(output=issues)
+    if args.export:
+        export(output=issues, formats=args.export)
 
 
 async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Status):
@@ -253,7 +229,9 @@ async def cmd_comments(client: Buganize, args: argparse.Namespace, status: Statu
 
     status.stop()  # restore stdout so the pager works (Status redirects it)
     console.print(f"Issue #{issue_id} — {len(result.comments)} comments\n")
-    print_and_export(output=result.comments, formats=args.export)
+    pretty_print(output=result.comments)
+    if args.export:
+        export(output=result.comments, formats=args.export)
 
 
 # noinspection PyUnusedLocal

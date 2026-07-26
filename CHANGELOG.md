@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-26
+
+### Added
+
+- _to_dict()_, _to_json()_, and _to_csv()_ on every model, and on the list a
+  read hands back: _issue.to_json("issue.json")_, _issues.to_csv("issues.csv")_.
+  Each write returns the path and makes missing parent directories.
+
+### Changed
+
+- Results now print as their dataclasses through the pager, every field the
+  tracker sent, rather than as a table of chosen columns. Enums read as their
+  names (_FIXED_, _P1_) and timestamps in ISO form.
+- _-e/--export_ writes every field, and is handled by the models themselves.
+
+### Removed
+
+- _-f/--fields_ and _-F/--all-fields_: all fields are shown, so there are no
+  extra ones to ask for.
+- HTML export: _-e/--export_ takes _csv_ and _json_.
+
 ## [1.10.0] - 2026-06-16
 
 ### Added

@@ -1,89 +1,261 @@
+"""
+Data models for the Google Issue Tracker.
+
+Every model here carries the fields the API sends, and writes itself out::
+
+    async with Buganize() as client:
+        issues = await client.issues([40060244, 486077869])
+
+        issues.to_csv("issues.csv")        # one row per issue
+        issues[0].to_json("issue.json")    # one object
+        issues[0].to_dict()                # the fields as a plain dict
+
+A read that hands back several items hands back a :class:`Results` list, which
+writes itself out the same way one item does.
+"""
+
+import csv
 import enum
+import json
 import typing as t
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import datetime
+from pathlib import Path
 
 __all__ = [
     "CUSTOM_FIELD_IDS",
     "Comment",
     "CommentsResult",
+    "Convert",
     "CustomFieldValue",
-    "EXTRA_FIELDS",
+    "Exportable",
     "FieldChange",
     "Issue",
     "IssueType",
     "IssueUpdate",
     "IssueUpdatesResult",
     "Priority",
+    "Results",
     "SearchResult",
     "Severity",
     "Status",
+    "UnquotedValue",
 ]
 
-# Extra fields available via --fields/--all-fields. Each key is both the CLI
-# field name and the column header (title-cased with underscores as spaces).
-# The value is a getter that extracts a display string from an Issue.
-EXTRA_FIELDS: dict[str, t.Callable[["Issue"], t.Any]] = {
-    "owner": lambda issue: issue.owner,
-    "reporter": lambda issue: issue.reporter,
-    "verifier": lambda issue: issue.verifier,
-    "type": lambda issue: issue.issue_type.name if issue.issue_type else None,
-    "component": lambda issue: str(issue.component_id) if issue.component_id else None,
-    "tags": lambda issue: ", ".join(issue.component_tags) or None,
-    "ancestor_tags": lambda issue: ", ".join(issue.component_ancestor_tags) or None,
-    "labels": lambda issue: ", ".join(issue.labels) or None,
-    "os": lambda issue: ", ".join(issue.os) or None,
-    "milestone": lambda issue: ", ".join(issue.milestone) or None,
-    "ccs": lambda issue: ", ".join(issue.ccs) or None,
-    "hotlists": lambda issue: ", ".join(str(h) for h in issue.hotlist_ids) or None,
-    "severity": lambda issue: (
-        issue.severity.name if issue.severity is not None else None
-    ),
-    "collaborators": lambda issue: ", ".join(issue.collaborators) or None,
-    "found_in": lambda issue: ", ".join(issue.found_in) or None,
-    "in_prod": lambda issue: "Yes" if issue.in_prod else None,
-    "blocking": lambda issue: ", ".join(str(b) for b in issue.blocking_issue_ids)
-                              or None,
-    "duplicates": lambda issue: ", ".join(str(d) for d in issue.duplicate_issue_ids)
-                                or None,
-    "cve": lambda issue: ", ".join(issue.cve) or None,
-    "cwe": lambda issue: (
-        str(int(t.cast(float, issue.cwe_id))) if issue.cwe_id is not None else None
-    ),
-    "build": lambda issue: issue.build_number,
-    "introduced_in": lambda issue: issue.introduced_in,
-    "merge": lambda issue: ", ".join(issue.merge) or None,
-    "merge_request": lambda issue: ", ".join(issue.merge_request) or None,
-    "release_block": lambda issue: ", ".join(issue.release_block) or None,
-    "notice": lambda issue: issue.notice,
-    "flaky_test": lambda issue: issue.flaky_test,
-    "est_days": lambda issue: (
-        str(issue.estimated_days) if issue.estimated_days is not None else None
-    ),
-    "next_action": lambda issue: issue.next_action,
-    "vrp_reward": lambda issue: (
-        str(issue.vrp_reward) if issue.vrp_reward is not None else None
-    ),
-    "irm_link": lambda issue: issue.irm_link,
-    "sec_release": lambda issue: ", ".join(issue.security_release) or None,
-    "fixed_by": lambda issue: ", ".join(issue.fixed_by_code_changes) or None,
-    "created": lambda issue: issue.created_at.isoformat() if issue.created_at else None,
-    "modified": lambda issue: (
-        issue.modified_at.isoformat() if issue.modified_at else None
-    ),
-    "verified": lambda issue: (
-        issue.verified_at.isoformat() if issue.verified_at else None
-    ),
-    "last_activity": lambda issue: (
-        issue.last_activity_at.isoformat() if issue.last_activity_at else None
-    ),
-    "comments": lambda issue: str(issue.comment_count),
-    "stars": lambda issue: str(issue.star_count),
-    "last_modifier": lambda issue: issue.last_modifier,
-    "24h_views": lambda issue: str(issue.views_24h) if issue.views_24h else None,
-    "7d_views": lambda issue: str(issue.views_7d) if issue.views_7d else None,
-    "30d_views": lambda issue: str(issue.views_30d) if issue.views_30d else None,
-}
+
+class UnquotedValue(str):
+    """
+    One field value that prints as itself, without the quotes a string carries.
+
+    An enum name and a timestamp are values, not prose, so they read better
+    unquoted: ``status=FIXED``, not ``status='FIXED'``.
+    """
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+class Convert:
+    """
+    The conversions a model needs to show itself, or to write itself out.
+
+    A value reads one way on screen and stores another, so there is a method per
+    destination, plus the one that readies a path to write to.
+    """
+
+    @staticmethod
+    def for_console(value: t.Any) -> t.Any:
+        """
+        Swap a single field value for how it reads on screen.
+
+        An enum shows its name rather than its numeric repr, and a datetime its
+        ISO form rather than the constructor call, both unquoted.
+
+        :param value: A field value.
+        :return: The readable form of the value.
+        """
+
+        if isinstance(value, enum.Enum):
+            return UnquotedValue(value.name)
+        if isinstance(value, datetime):
+            return UnquotedValue(value.isoformat())
+        return value
+
+    @staticmethod
+    def for_file(value: t.Any) -> t.Any:
+        """
+        Reduce a field value to something JSON and CSV can both hold.
+
+        Enums become their names, datetimes their ISO form, and nested
+        dataclasses, lists, and dicts are converted item by item.
+
+        :param value: A field value.
+        :return: The plain form of the value.
+        """
+
+        if isinstance(value, enum.Enum):
+            return value.name
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if is_dataclass(value) and not isinstance(value, type):
+            return {
+                field.name: Convert.for_file(getattr(value, field.name))
+                for field in fields(value)
+            }
+        if isinstance(value, dict):
+            return {key: Convert.for_file(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [Convert.for_file(item) for item in value]
+        return value
+
+    @staticmethod
+    def to_writable_path(path: str) -> Path:
+        """
+        Make the parent directory of an output path when it is missing.
+
+        :param path: Output file path.
+        :return: The path, ready to write to.
+        """
+
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        return target
+
+
+class Exportable:
+    """
+    Writes a dataclass out as a dict, or to a JSON or CSV file, and prints it
+    with its enums and timestamps read as text.
+
+    Only the dataclass's own fields are covered; properties such as
+    :attr:`Issue.url` are left out.
+    """
+
+    def __rich_repr__(self) -> t.Iterator[tuple[str, t.Any]]:
+        for f in fields(self):
+            yield f.name, Convert.for_console(getattr(self, f.name))
+
+    def to_dict(self) -> dict[str, t.Any]:
+        """
+        Return the item's fields as a plain dict.
+
+        :return: Every field, with enums, datetimes, and nested dataclasses
+            reduced to plain values.
+        """
+
+        return {f.name: Convert.for_file(getattr(self, f.name)) for f in fields(self)}
+
+    def to_json(self, path: str, indent: int = 4) -> str:
+        """
+        Write the item to a JSON file as one object.
+
+        :param path: Output file path. Missing parent directories are made.
+        :param indent: Spaces to indent by. ``0`` writes it on one line.
+        :return: The path written.
+        """
+
+        target = Convert.to_writable_path(path)
+        target.write_text(
+            json.dumps(self.to_dict(), indent=indent or None, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return str(target)
+
+    def to_csv(self, path: str) -> str:
+        """
+        Write the item to a CSV file as one row.
+
+        :param path: Output file path. Missing parent directories are made.
+        :return: The path written.
+        """
+
+        return Results([self]).to_csv(path)
+
+
+class Results[T](list[T]):
+    """
+    The list of items a read hands back. It writes itself out the way one item does.
+
+    It is a plain list, so it indexes, slices, and iterates as always. It just
+    also carries :meth:`to_dict`, :meth:`to_json`, and :meth:`to_csv`::
+
+        issues = await client.issues([40060244, 486077869])
+
+        issues.to_csv("issues.csv")
+        issues[0].to_json("first.json")
+    """
+
+    @staticmethod
+    def _as_cell(value: t.Any) -> t.Any:
+        """
+        Make one value fit in a CSV cell.
+
+        A cell holds text, so nested lists and dicts go in as JSON rather than
+        as a Python repr, which keeps them readable by whatever opens the file next.
+
+        :param value: A field value.
+        :return: The value, or its JSON form when it nests.
+        """
+
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return value
+
+    def to_dict(self) -> list[dict[str, t.Any]]:
+        """
+        Return the items as a list of plain dicts.
+
+        :return: One dict of fields per item.
+        """
+
+        return [item.to_dict() for item in self]
+
+    def to_json(self, path: str, indent: int = 4) -> str:
+        """
+        Write the items to a JSON file as one array.
+
+        :param path: Output file path. Missing parent directories are made.
+        :param indent: Spaces to indent by. ``0`` writes it on one line.
+        :return: The path written.
+        """
+
+        target = Convert.to_writable_path(path)
+        target.write_text(
+            json.dumps(self.to_dict(), indent=indent or None, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return str(target)
+
+    def to_csv(self, path: str) -> str:
+        """
+        Write the items to a CSV file, one row each.
+
+        The columns are the union of every row's keys, in the order they were
+        first seen, since items of the same kind can still carry different fields.
+
+        :param path: Output file path. Missing parent directories are made.
+        :return: The path written.
+        """
+
+        target = Convert.to_writable_path(path)
+        rows = self.to_dict()
+
+        fieldnames: list[str] = []
+        seen: set[str] = set()
+        for row in rows:
+            for key in row:
+                if key not in seen:
+                    seen.add(key)
+                    fieldnames.append(key)
+
+        with target.open("w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(
+                    {key: self._as_cell(value) for key, value in row.items()}
+                )
+        return str(target)
 
 
 class Status(enum.IntEnum):
@@ -256,7 +428,7 @@ CUSTOM_FIELD_IDS: dict[int, str] = {
 
 
 @dataclass
-class CustomFieldValue:
+class CustomFieldValue(Exportable):
     """
     A single custom field value that didn't map to a known attribute.
 
@@ -274,7 +446,7 @@ class CustomFieldValue:
 
 
 @dataclass
-class Issue:
+class Issue(Exportable):
     """
     A single issue from the Google Issue Tracker.
 
@@ -399,7 +571,7 @@ class Issue:
 
 
 @dataclass
-class Comment:
+class Comment(Exportable):
     """
     A single comment on an issue.
 
@@ -450,7 +622,7 @@ class CommentsResult:
         next_page_token: Token for fetching the next page, if there are more.
     """
 
-    comments: list[Comment]
+    comments: Results[Comment]
     total_count: int
     next_page_token: str | None = None
 
@@ -464,7 +636,7 @@ class CommentsResult:
 
 
 @dataclass
-class FieldChange:
+class FieldChange(Exportable):
     """
     A single field change within an issue update.
 
@@ -480,7 +652,7 @@ class FieldChange:
 
 
 @dataclass
-class IssueUpdate:
+class IssueUpdate(Exportable):
     """
     An issue update entry. May contain a comment, field changes, or both.
 
@@ -515,17 +687,21 @@ class IssueUpdatesResult:
         next_page_token: Token for fetching the next page, if there are more.
     """
 
-    updates: list[IssueUpdate]
+    updates: Results[IssueUpdate]
     total_count: int
     next_page_token: str | None = None
 
     @property
-    def comments(self) -> list[Comment]:
+    def comments(self) -> Results[Comment]:
         """
         Only the updates that have comments, in chronological order (oldest first).
         """
 
-        return [u.comment for u in reversed(self.updates) if u.comment is not None]
+        return Results(
+            update.comment
+            for update in reversed(self.updates)
+            if update.comment is not None
+        )
 
     @property
     def has_more(self) -> bool:
@@ -549,7 +725,7 @@ class SearchResult:
         page_size: The page size used for this search (stored for pagination).
     """
 
-    issues: list[Issue]
+    issues: Results[Issue]
     total_count: int
     next_page_token: str | None = None
     query: str = ""

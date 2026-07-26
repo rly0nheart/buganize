@@ -1,12 +1,12 @@
 [project]
 name = "buganize"
-version = "1.10.0"
+version = "2.0.0"
 description = "Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
-    { name = "Ritchie Mwewa", email = "hi@rly0nheart.com" },
+    { name = "Ritchie Mwewa", email = "rly0nheart@duck.com" },
 ]
 keywords = [
     "buganizer",

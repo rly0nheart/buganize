@@ -32,14 +32,15 @@ def start():
 
     from .commands import dispatch_client, parse_args
     from .console import console
-    from .output import print_trackers
+    from .output import pretty_print
     from .symbols import INFO, WARN
     from ..api.client import TRACKERS
 
     args = parse_args()
 
     if args.command == "trackers":
-        print_trackers(trackers=TRACKERS)
+        pretty_print(output=TRACKERS)
+        console.print(f"\n{len(TRACKERS)} trackers available")
         return
 
     logging.basicConfig(

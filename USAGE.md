@@ -8,13 +8,13 @@
     - [Batch get issues](#batch-get-issues)
     - [Get comments](#get-comments)
     - [Get full updates](#get-full-updates)
+    - [Export results](#export-results)
 2. [CLI usage](#cli-usage)
     - [Search](#search)
     - [Tracker selection](#tracker-selection)
     - [Issue](#issue)
     - [Issues (batch)](#issues-batch)
     - [Comments](#comments)
-    - [Extra fields](#extra-fields)
     - [Export](#export)
     - [Debug logging](#debug-logging)
     - [Timeout](#timeout)
@@ -103,9 +103,9 @@ async def batch_get():
 ```python
 async def get_comments():
     async with Buganize() as client:
-        comments = await client.comments(486077869)
+        result = await client.comments(486077869)
 
-        for comment in comments:
+        for comment in result.comments:
             print(f"#{comment.comment_number} by {comment.author}")
             print(comment.body)
 ```
@@ -133,6 +133,27 @@ async def get_updates():
             if update.comment:
                 print(f"  Comment: {update.comment.body[:80]}")
 ```
+
+### Export results
+
+Every issue and comment writes itself out, and so does the list a read hands back:
+
+```python
+async def export():
+    async with Buganize() as client:
+        issues = await client.issues([40060244, 485912774, 486077869])
+
+        issues.to_csv("issues.csv")  # one row per issue
+        issues.to_json("issues.json")  # one array
+        issues[0].to_json("issue.json")  # one object
+        issues[0].to_dict()  # the fields as a plain dict
+
+        result = await client.search("status:open", page_size=25)
+        result.issues.to_csv("open.csv")
+```
+
+Missing parent directories are made, and each call returns the path it wrote.
+Enums are written as their names (e.g. `FIXED`, `P1`) and timestamps in ISO form.
 
 ## CLI usage
 
@@ -197,33 +218,10 @@ buganize issues 40060244 485912774 486077869
 buganize comments 486077869
 ```
 
-### Extra fields
-
-By default, the table output only shows ID, Status, Priority, and Title. You can show additional columns with
-`-f/--fields` (repeatable) or `-F/--all-fields`. These are global options that work with any subcommand:
-
-```bash
-# Show specific extra fields (repeat -f for each)
-buganize -f owner -f os -f milestone search "status:open"
-
-# Show all available fields
-buganize -F search "status:open"
-
-# Works with issue and issues too
-buganize -f cve -f tags -f labels issue 486077869
-buganize -F issue 486077869
-```
-
-Available extra field names: `owner`, `reporter`, `verifier`, `type`, `component`, `tags`, `ancestor_tags`, `labels`,
-`os`, `milestone`, `ccs`, `hotlists`, `severity`, `collaborators`, `found_in`, `in_prod`, `blocking`, `duplicates`,
-`cve`, `cwe`, `build`, `introduced_in`, `merge`, `merge_request`, `release_block`, `notice`, `flaky_test`, `est_days`,
-`next_action`, `vrp_reward`, `irm_link`, `sec_release`, `fixed_by`, `created`, `modified`, `verified`, `comments`,
-`stars`, `last_modifier`, `24h_views`, `7d_views`, `30d_views`.
-
 ### Export
 
-All commands support `-e/--export` (repeatable) for exporting to CSV or JSON files. Exported files are named with a
-timestamp (e.g. `buganize-20260223_012345.csv`):
+All commands support `-e/--export` (repeatable) for exporting to CSV or JSON files. Every field the tracker sent is
+written, not a chosen few. Exported files are named with a timestamp (e.g. `buganize-20260223_012345.csv`):
 
 ```bash
 buganize -e csv search "status:open" -n 50
