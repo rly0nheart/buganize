@@ -1,4 +1,5 @@
 from buganize.api.models import (
+    AttachmentRestriction,
     Comment,
     FieldChange,
     Issue,
@@ -10,6 +11,18 @@ from buganize.api.models import (
     Severity,
     Status,
 )
+
+
+class TestAttachmentRestriction:
+    def test_known_values(self):
+        assert AttachmentRestriction.NO_RESTRICTION == 1
+        assert AttachmentRestriction.RESTRICTED == 2
+        assert AttachmentRestriction.RESTRICTED_PLUS == 3
+
+    def test_missing_value_creates_unknown(self):
+        unknown = AttachmentRestriction(4)
+        assert unknown.value == 4
+        assert unknown.name == "UNKNOWN_4"
 
 
 class TestStatus:

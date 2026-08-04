@@ -24,6 +24,7 @@ from pathlib import Path
 
 __all__ = [
     "Attachment",
+    "AttachmentRestriction",
     "CUSTOM_FIELD_IDS",
     "Comment",
     "CommentsResult",
@@ -396,6 +397,33 @@ class IssueType(enum.IntEnum):
         return obj
 
 
+class AttachmentRestriction(enum.IntEnum):
+    """
+    Access restriction levels for issue attachments.
+
+    Unknown values from the API get an auto-generated UNKNOWN_N name.
+    """
+
+    NO_RESTRICTION = 1
+    RESTRICTED = 2
+    RESTRICTED_PLUS = 3
+
+    @classmethod
+    def _missing_(cls, value):
+        """
+        Synthesize a pseudo-member for an unknown attachment restriction.
+
+        :param value: Numeric restriction level returned by the API.
+        :return: A new :class:`AttachmentRestriction` instance.
+        """
+
+        # noinspection PyTypeChecker
+        obj = int.__new__(cls, value)
+        obj._name_ = f"UNKNOWN_{value}"
+        obj._value_ = value
+        return obj
+
+
 # Maps numeric custom field IDs to human-readable names.
 # These are the 24 well-known fields in the Chromium tracker (tracker 157).
 # Other trackers may use different field IDs; unrecognized fields go to custom_fields.
@@ -611,13 +639,22 @@ class Comment(Exportable):
             return True
         return self.last_editor is not None and self.last_editor != self.author
 
+
 @dataclass
 class Attachment(Exportable):
+    """
+    A file attached to an issue update.
+
+    The API returns ``size=None`` after the attachment has been deleted.
+    """
+
     issue_id: int
     id: int
     mime_type: str
-    size: int
+    size: int | None
     filename: str
+    restriction: AttachmentRestriction
+
 
 @dataclass
 class CommentsResult:

@@ -4,6 +4,7 @@ from typing import Any
 
 from ..api.models import (
     Attachment,
+    AttachmentRestriction,
     CUSTOM_FIELD_IDS,
     Comment,
     CommentsResult,
@@ -566,13 +567,15 @@ def __parse_attachments(raw_attachments: Any, issue_id: int):
         mime_type = __get(raw_attachment, 1)
         size = __get(raw_attachment, 2)
         filename = __get(raw_attachment, 3)
+        restriction = AttachmentRestriction(__get(raw_attachment, 9, 0, 0))
 
         attachments.append(Attachment(
             issue_id=issue_id,
             id=attachment_id,
             mime_type=mime_type,
             size=size,
-            filename=filename
+            filename=filename,
+            restriction=restriction,
         ))
 
     return attachments

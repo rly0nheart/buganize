@@ -4,7 +4,15 @@ from typing import Any
 
 import pytest
 
-from buganize.api.models import Attachment, IssueType, Priority, Severity, Status
+from buganize.api.models import (
+    Attachment,
+    AttachmentRestriction,
+    IssueType,
+    Priority,
+    Severity,
+    Status,
+)
+
 from buganize.api.parser import (
     # The parser's helpers are name-mangled inside a class body, so they come in
     # under plain names the test classes below can call.
@@ -680,22 +688,40 @@ class TestParseUpdatesResponse:
     def test_parses_attachments(self) -> None:
         attachments = [
             [
-                55450698,
-                "text/plain ",
-                10674,
-                "crash.log",
-                ["attachment: 333957174: 55450698"],
+                64413762,
+                "application/octet-stream",
+                None,
+                "deleted",
+                ["attachment:407328533:64413762"],
                 [],
-                "TXpNek9UVTNNVGMwTFRVMU5EVXdOams0TFRVMU1ERTVPRFk0Tmc9PQ\\u003d\\u003d ",
+                "TkRBM016STROVE16TFRZME5ERXpOell5TFRFME9UTTJOVEUxTmpRPQ\\u003d\\u003d",
                 None,
                 None,
                 [[1]],
                 None,
                 None,
-                333957174,
+                407328533,
+            ],
+            [
+                64413763,
+                "video/mp4",
+                332301,
+                "chrome_2025-03-30_19-51-07.mp4",
+                ["attachment:407328533:64413763"],
+                [],
+                "TkRBM016STROVE16TFRZME5ERXpOell6TFRFeE1qSTJOek16TkRFPQ\\u003d\\u003d",
+                None,
+                None,
+                [[1]],
+                None,
+                None,
+                407328533,
             ],
         ]
-        update = self._make_update_entry(attachments=attachments)
+        update = self._make_update_entry(
+            issue_id=407328533,
+            attachments=attachments,
+        )
 
         response_data = [["b.ListIssueUpdatesResponse", [[update], None, 1]]]
         raw = XSSI_PREFIX + json.dumps(response_data)
@@ -706,13 +732,84 @@ class TestParseUpdatesResponse:
         assert parsed is not None
         assert parsed == [
             Attachment(
-                issue_id=42,
-                id=55450698,
-                mime_type="text/plain ",
-                size=10674,
-                filename="crash.log",
-            )
+                issue_id=407328533,
+                id=64413762,
+                mime_type="application/octet-stream",
+                size=None,
+                filename="deleted",
+                restriction=AttachmentRestriction.NO_RESTRICTION,
+            ),
+            Attachment(
+                issue_id=407328533,
+                id=64413763,
+                mime_type="video/mp4",
+                size=332301,
+                filename="chrome_2025-03-30_19-51-07.mp4",
+                restriction=AttachmentRestriction.NO_RESTRICTION,
+            ),
         ]
+
+    def test_parses_attachment_restrictions(self) -> None:
+        attachments = [
+            [
+                52928287,
+                "video/mp4",
+                937910,
+                "Chrome File URL.mp4",
+                ["attachment:40068570:52928287"],
+                [],
+                None,
+                None,
+                None,
+                [[3]],
+                None,
+                1,
+                40068570,
+            ],
+            [
+                52928288,
+                "video/mp4",
+                668191,
+                "Chrome Links.mp4",
+                ["attachment:40068570:52928288"],
+                [],
+                None,
+                None,
+                None,
+                [[2]],
+                None,
+                1,
+                40068570,
+            ],
+            [
+                52928289,
+                "text/plain",
+                578,
+                "PufIndex.html",
+                ["attachment:40068570:52928289"],
+                [],
+                None,
+                None,
+                None,
+                [[1]],
+                None,
+                None,
+                40068570,
+            ],
+        ]
+        update = self._make_update_entry(
+            issue_id=40068570,
+            attachments=attachments,
+        )
+        response_data = [["b.ListIssueUpdatesResponse", [[update], None, 1]]]
+
+        result = parse_updates_response(XSSI_PREFIX + json.dumps(response_data))
+
+        parsed = result.updates[0].attachments
+        assert parsed is not None
+        assert parsed[0].restriction is AttachmentRestriction.RESTRICTED_PLUS
+        assert parsed[1].restriction is AttachmentRestriction.RESTRICTED
+        assert parsed[2].restriction is AttachmentRestriction.NO_RESTRICTION
 
     def test_updates_without_attachments_return_none(self) -> None:
         update = self._make_update_entry()
