@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..api.models import (
+    Attachment,
     CUSTOM_FIELD_IDS,
     Comment,
     CommentsResult,
@@ -553,6 +554,28 @@ def __parse_field_changes(raw_changes: Any) -> list[FieldChange]:
         changes.append(FieldChange(field=field_name))
     return changes
 
+def __parse_attachments(raw_attachments: Any, issue_id: int):
+    if not raw_attachments or not isinstance(raw_attachments, list):
+        return None
+
+    attachments:list[Attachment] = []
+
+    for raw_attachment in raw_attachments:
+
+        attachment_id = __get(raw_attachment, 0)
+        mime_type = __get(raw_attachment, 1)
+        size = __get(raw_attachment, 2)
+        filename = __get(raw_attachment, 3)
+
+        attachments.append(Attachment(
+            issue_id=issue_id,
+            id=attachment_id,
+            mime_type=mime_type,
+            size=size,
+            filename=filename
+        ))
+
+    return attachments
 
 def __parse_comment(
     raw_comment: Any, issue_id: int, number_offset: int = 1
@@ -644,8 +667,10 @@ def __parse_updates_response(raw_text: str) -> IssueUpdatesResult:
         comment_array = __get(update_entry, 2)
         sequence_number = __get(update_entry, 3)
         changes_array = __get(update_entry, 5)
+        attachments_array = __get(update_entry, 7)
 
         comment = __parse_comment(comment_array, issue_id) if comment_array else None
+        attachments = __parse_attachments(attachments_array, issue_id)
 
         updates.append(
             IssueUpdate(
@@ -655,6 +680,7 @@ def __parse_updates_response(raw_text: str) -> IssueUpdatesResult:
                 timestamp=__parse_timestamp(timestamp_array),
                 comment=comment,
                 field_changes=__parse_field_changes(changes_array),
+                attachments=attachments
             )
         )
 

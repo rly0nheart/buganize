@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 __all__ = [
+    "Attachment",
     "CUSTOM_FIELD_IDS",
     "Comment",
     "CommentsResult",
@@ -610,6 +611,13 @@ class Comment(Exportable):
             return True
         return self.last_editor is not None and self.last_editor != self.author
 
+@dataclass
+class Attachment(Exportable):
+    issue_id: int
+    id: int
+    mime_type: str
+    size: int
+    filename: str
 
 @dataclass
 class CommentsResult:
@@ -671,6 +679,7 @@ class IssueUpdate(Exportable):
     timestamp: datetime | None = None
     comment: Comment | None = None
     field_changes: list[FieldChange] = field(default_factory=list)
+    attachments: list[Attachment] | None = None
 
 
 @dataclass

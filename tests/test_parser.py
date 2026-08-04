@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from buganize.api.models import IssueType, Priority, Severity, Status
+from buganize.api.models import Attachment, IssueType, Priority, Severity, Status
 from buganize.api.parser import (
     # The parser's helpers are name-mangled inside a class body, so they come in
     # under plain names the test classes below can call.
@@ -617,6 +617,7 @@ class TestParseUpdatesResponse:
             comment_text: str | None = None,
             sequence: int = 0,
             field_changes: list[list[Any]] | None = None,
+            attachments: list[list[Any]] | None = None,
     ) -> list[Any]:
         """Build a minimal 10-element update entry."""
         entry: list[Any] = [None] * 10
@@ -631,6 +632,7 @@ class TestParseUpdatesResponse:
             entry[2] = comment
         entry[3] = sequence
         entry[5] = field_changes
+        entry[7] = attachments
         entry[9] = issue_id
         return entry
 
@@ -674,6 +676,52 @@ class TestParseUpdatesResponse:
         assert result.updates[0].comment is None
         assert len(result.updates[0].field_changes) == 1
         assert result.updates[0].field_changes[0].field == "status"
+
+    def test_parses_attachments(self) -> None:
+        attachments = [
+            [
+                55450698,
+                "text/plain ",
+                10674,
+                "crash.log",
+                ["attachment: 333957174: 55450698"],
+                [],
+                "TXpNek9UVTNNVGMwTFRVMU5EVXdOams0TFRVMU1ERTVPRFk0Tmc9PQ\\u003d\\u003d ",
+                None,
+                None,
+                [[1]],
+                None,
+                None,
+                333957174,
+            ],
+        ]
+        update = self._make_update_entry(attachments=attachments)
+
+        response_data = [["b.ListIssueUpdatesResponse", [[update], None, 1]]]
+        raw = XSSI_PREFIX + json.dumps(response_data)
+
+        result = parse_updates_response(raw)
+
+        parsed = result.updates[0].attachments
+        assert parsed is not None
+        assert parsed == [
+            Attachment(
+                issue_id=42,
+                id=55450698,
+                mime_type="text/plain ",
+                size=10674,
+                filename="crash.log",
+            )
+        ]
+
+    def test_updates_without_attachments_return_none(self) -> None:
+        update = self._make_update_entry()
+        response_data = [["b.ListIssueUpdatesResponse", [[update], None, 1]]]
+        raw = XSSI_PREFIX + json.dumps(response_data)
+
+        result = parse_updates_response(raw)
+
+        assert result.updates[0].attachments is None
 
     def test_pagination(self) -> None:
         response_data = [["b.ListIssueUpdatesResponse", [[], "page2_token", 50]]]
