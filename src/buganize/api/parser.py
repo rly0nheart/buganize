@@ -555,9 +555,8 @@ def __parse_field_changes(raw_changes: Any) -> list[FieldChange]:
         changes.append(FieldChange(field=field_name))
     return changes
 
-def __parse_attachments(
-    raw_attachments: Any, issue_id: int
-) -> list[Attachment] | None:
+
+def __parse_attachments(raw_attachments: Any, issue_id: int) -> list[Attachment] | None:
     """
     Parse attachment entries from an issue update.
 
@@ -594,6 +593,7 @@ def __parse_attachments(
         )
 
     return attachments
+
 
 def __parse_comment(
     raw_comment: Any, issue_id: int, number_offset: int = 1
@@ -698,7 +698,7 @@ def __parse_updates_response(raw_text: str) -> IssueUpdatesResult:
                 timestamp=__parse_timestamp(timestamp_array),
                 comment=comment,
                 field_changes=__parse_field_changes(changes_array),
-                attachments=attachments
+                attachments=attachments,
             )
         )
 

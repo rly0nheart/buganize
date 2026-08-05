@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-08-05
+
+### Added
+
+- _CONTRIBUTING.md_, covering formatting, docstrings, the API reference, and
+  how to pick a version for your own changelog entry.
+
+### Changed
+
+- Tests now run on every pull request, not only on the nightly schedule.
+- CI runs Python 3.13 and 3.14, matching the _requires-python_ floor.
+- A new push to a pull request cancels the run still going for the old commit.
+- Formatted _parser.py_ and _test_parser.py_ with black.
+
+### Removed
+
+- Python 3.11 and 3.12 from the CI matrix.
+
 ## [2.1.0] - 2026-08-05
 ### Added
 - an _Attachment_ model for issue update attachments
