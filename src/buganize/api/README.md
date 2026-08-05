@@ -1,6 +1,6 @@
 # Google Issue Tracker (Buganizer)  API Reference
 
-> **Last updated:** 16 06 2026, 17:10:55
+> **Last updated:** 05 08 2026, 14:39:47
 
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
@@ -156,13 +156,13 @@ POST /action/issues/list
 ]
 ```
 
-| Position | Field          | Type             | Description                                                           |
-|----------|----------------|------------------|-----------------------------------------------------------------------|
-| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all |
-| `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)                                   |
+| Position | Field          | Type             | Description                                                                         |
+|----------|----------------|------------------|-------------------------------------------------------------------------------------|
+| `[5]`    | tracker_filter | `[str] \| null`  | `["157"]` for Chromium, `["157", "183"]` for multiple, `null` for all               |
+| `[6][0]` | query          | `str`            | Search query (e.g. `"status:open"`)                                                 |
 | `[6][1]` | (reserved)     | `null`           | Must be `null`. Any other value returns 400. Sort order is not supported for search |
-| `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250                                 |
-| `[6][3]` | page_token     | `str \| omitted` | Pagination token from previous response                               |
+| `[6][2]` | page_size      | `int`            | Results per page: 25, 50, 100, or 250                                               |
+| `[6][3]` | page_token     | `str \| omitted` | Pagination token from previous response                                             |
 
 **Example — search all trackers:**
 
@@ -220,11 +220,11 @@ POST /action/issues/{issue_id}/getIssue?currentTrackerId={tracker_id}
 ]
 ```
 
-| Position | Field        | Type  | Description                                            |
-|----------|--------------|-------|--------------------------------------------------------|
-| `[0]`    | issue_id     | `int` | The issue ID                                           |
+| Position | Field        | Type  | Description                                                                                     |
+|----------|--------------|-------|-------------------------------------------------------------------------------------------------|
+| `[0]`    | issue_id     | `int` | The issue ID                                                                                    |
 | `[1]`    | detail_level | `int` | `2` = include body, links, and relationship graph. Any other value returns baseline fields only |
-| `[2]`    | flag_2       | `int` | No observable effect (tested 0-10). Use `1`            |
+| `[2]`    | flag_2       | `int` | No observable effect (tested 0-10). Use `1`                                                     |
 
 > **Important:** Pass `2` as `detail_level` to populate `TOP[37]`
 > (relationship graph), `TOP[40]` (links), and `TOP[43]`
@@ -251,13 +251,13 @@ POST /action/issues/batch
 ]
 ```
 
-| Position | Field        | Type        | Description                                            |
-|----------|--------------|-------------|--------------------------------------------------------|
-| `[1]`    | (unused)     | `null`      | Ignored by the server                                  |
-| `[2]`    | (unused)     | `null`      | Ignored by the server                                  |
-| `[3][0]` | issue_ids    | `list[int]` | List of issue IDs to fetch                             |
+| Position | Field        | Type        | Description                                                         |
+|----------|--------------|-------------|---------------------------------------------------------------------|
+| `[1]`    | (unused)     | `null`      | Ignored by the server                                               |
+| `[2]`    | (unused)     | `null`      | Ignored by the server                                               |
+| `[3][0]` | issue_ids    | `list[int]` | List of issue IDs to fetch                                          |
 | `[3][1]` | detail_level | `int`       | `2` = include body, links, and relationship graph. Same as getIssue |
-| `[3][2]` | flag_2       | `int`       | No observable effect (tested 0-10). Use `2`            |
+| `[3][2]` | flag_2       | `int`       | No observable effect (tested 0-10). Use `2`                         |
 
 ### List Comments
 
@@ -276,12 +276,12 @@ POST /action/issues/{issue_id}/listComments
 ]
 ```
 
-| Position | Field      | Type             | Description                                                             |
-|----------|------------|------------------|-------------------------------------------------------------------------|
-| `[0]`    | issue_id   | `int`            | The issue ID                                                            |
-| `[1]`    | sort_order | `str \| null`    | `"ASC"` for oldest-first, `"DESC"` for newest-first. `null` = `"DESC"` |
-| `[2]`    | page_size  | `int`            | Number of comments per page (max 500)                                   |
-| `[3]`    | page_token | `str \| omitted` | Pagination token from previous response (e.g. `"start_index:2"`)       |
+| Position | Field      | Type             | Description                                                              |
+|----------|------------|------------------|--------------------------------------------------------------------------|
+| `[0]`    | issue_id   | `int`            | The issue ID                                                             |
+| `[1]`    | sort_order | `str \| null`    | `"ASC"` for oldest-first, `"DESC"` for newest-first. `null` = `"DESC"`   |
+| `[2]`    | page_size  | `int`            | Number of comments per page (max 500)                                    |
+| `[3]`    | page_token | `str \| omitted` | Pagination token from previous response (e.g. `"start_index:2"`)         |
 
 Returns only text comments (no field-change-only updates). The `total_count`
 reflects the number of text comments, which is typically lower than the
@@ -329,13 +329,13 @@ order** (newest first). The request also accepts an extended format:
 ]
 ```
 
-| Position | Field        | Type             | Description                                              |
-|----------|--------------|------------------|----------------------------------------------------------|
-| `[0]`    | issue_id     | `int`            | The issue ID                                             |
-| `[1]`    | sort_order   | `str \| omitted` | `"ASC"` or `"DESC"` (omit for server default: DESC)     |
-| `[2]`    | page_size    | `int \| omitted` | Number of updates per page                               |
-| `[3]`    | page_token   | `null \| str`    | Pagination token                                         |
-| `[4]`    | unknown_flag | `int \| omitted` | Always `2` in browser traffic (purpose unknown)          |
+| Position | Field        | Type             | Description                                               |
+|----------|--------------|------------------|-----------------------------------------------------------|
+| `[0]`    | issue_id     | `int`            | The issue ID                                              |
+| `[1]`    | sort_order   | `str \| omitted` | `"ASC"` or `"DESC"` (omit for server default: DESC)       |
+| `[2]`    | page_size    | `int \| omitted` | Number of updates per page                                |
+| `[3]`    | page_token   | `null \| str`    | Pagination token                                          |
+| `[4]`    | unknown_flag | `int \| omitted` | Always `2` in browser traffic (purpose unknown)           |
 
 The short form `[ISSUE_ID]` still works and returns all updates newest-first.
 
@@ -503,10 +503,10 @@ data[0][1][1] = next page token (e.g. "start_index:2"), null on last page
 data[0][1][2] = total text comment count
 ```
 
-| Path        | Type          | Description                                             |
-|-------------|---------------|---------------------------------------------------------|
-| `[0][1][0]` | `list[list]`  | Array of 18-element comment entries                     |
-| `[0][1][1]` | `str \| null` | Next page token (`null` if last page)                   |
+| Path        | Type          | Description                                                   |
+|-------------|---------------|---------------------------------------------------------------|
+| `[0][1][0]` | `list[list]`  | Array of 18-element comment entries                           |
+| `[0][1][1]` | `str \| null` | Next page token (`null` if last page)                         |
 | `[0][1][2]` | `int`         | Total text comment count (excludes field-change-only updates) |
 
 The comment arrays use the same 18-element format as comments embedded in
@@ -525,6 +525,23 @@ data[0][1][1] = next page token
 data[0][1][2] = total update count
 ```
 
+Each update entry is a 10-element array. Attachment data is stored at
+`update[7]`, so the path from the response root is:
+
+```
+data[0][1][0][N][7] = array of attachment entries
+```
+
+Each attachment entry begins with:
+
+```
+[attachment_id, mime_type, size_bytes, filename, ...]
+```
+
+Additional attachment fields contain metadata such as the attachment token
+and access restriction. The attachment restriction level is currently
+observed at `attachment[9][0][0]`.
+
 ## Issue Array (48 elements)
 
 Every endpoint produces issues as 48-element positional arrays. The same
@@ -532,33 +549,33 @@ format is used across search, get, and batch responses.
 
 ### Top-Level Index Map
 
-| Index  | Field              | Type                 | Notes                                                                      |
-|--------|--------------------|----------------------|----------------------------------------------------------------------------|
-| `[0]`  | (unknown)          | —                    | —                                                                          |
-| `[1]`  | issue_id           | `int`                | Unique issue ID                                                            |
-| `[2]`  | details            | `list` (32 elements) | See [Details Array](#details-array-32-elements)                            |
-| `[3]`  | (unknown)          | —                    | —                                                                          |
-| `[4]`  | created_at         | `[secs, nanos]`      | Created timestamp                                                          |
-| `[5]`  | modified_at        | `[secs, nanos]`      | Last modified timestamp                                                    |
-| `[6]`  | verified_at        | `[secs, nanos]`      | Verification timestamp (may be `null`)                                     |
-| `[7]`  | (unknown)          | —                    | —                                                                          |
-| `[8]`  | (unknown)          | —                    | —                                                                          |
-| `[9]`  | star_count         | `int \| null`        | Number of stars/votes. `null` means 0                                      |
-| `[10]` | (unknown)          | `int`                | Always `3`                                                                 |
-| `[11]` | comment_count      | `int`                | Total comment count                                                        |
+| Index  | Field              | Type                 | Notes                                                                                                                 |
+|--------|--------------------|----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `[0]`  | (unknown)          | —                    | —                                                                                                                     |
+| `[1]`  | issue_id           | `int`                | Unique issue ID                                                                                                       |
+| `[2]`  | details            | `list` (32 elements) | See [Details Array](#details-array-32-elements)                                                                       |
+| `[3]`  | (unknown)          | —                    | —                                                                                                                     |
+| `[4]`  | created_at         | `[secs, nanos]`      | Created timestamp                                                                                                     |
+| `[5]`  | modified_at        | `[secs, nanos]`      | Last modified timestamp                                                                                               |
+| `[6]`  | verified_at        | `[secs, nanos]`      | Verification timestamp (may be `null`)                                                                                |
+| `[7]`  | (unknown)          | —                    | —                                                                                                                     |
+| `[8]`  | (unknown)          | —                    | —                                                                                                                     |
+| `[9]`  | star_count         | `int \| null`        | Number of stars/votes. `null` means 0                                                                                 |
+| `[10]` | (unknown)          | `int`                | Always `3`                                                                                                            |
+| `[11]` | comment_count      | `int`                | Total comment count                                                                                                   |
 | `[12]` | revision_token     | `str`                | Synthetic etag: double-base64 of `{issue_id}-{update_rev}-{comment_rev}`. See [Revision Token](#revision-token-top12) |
-| `[13]` | owner              | user array           | Currently assigned owner                                                   |
-| `[14]` | custom_field_defs  | `list`               | Custom field definitions (schema, not values; values are in `details[14]`) |
-| `[33]` | custom_field_refs  | `list[list[int]]`    | Custom field IDs available for this issue's component                      |
-| `[34]` | last_activity_at   | `[secs, nanos]`      | Timestamp of the last substantive update (comment or meaningful field change); excludes automated metadata churn |
-| `[35]` | modified_at_mirror | `[secs, nanos]`      | Last write to the issue; equals `modified_at` (`TOP[5]`) or within a few seconds of it |
-| `[36]` | blocking_issue_ids | `list[int]`          | IDs of issues that this issue blocks                                       |
-| `[37]` | relationship_graph | `list`               | Relationship data: `[[this_issue, [[blocked_issue]]]]`                     |
-| `[40]` | links              | `list`               | URLs extracted from issue body: `[[[url], null, type_int]]`                |
-| `[41]` | tracker_id         | `int \| null`        | Tracker ID (e.g. `157` for Chromium)                                       |
-| `[43]` | body               | `list \| null`       | Issue description entry, **only in batch/detail responses** (see below)    |
-| `[46]` | views              | `list \| null`       | View counts as `[24h, 7d, 30d]`. Empty `[]` means 0 views                  |
-| `[47]` | last_modifier      | user array           | Last person to modify the issue (index may be 46 in some response shapes)  |
+| `[13]` | owner              | user array           | Currently assigned owner                                                                                              |
+| `[14]` | custom_field_defs  | `list`               | Custom field definitions (schema, not values; values are in `details[14]`)                                            |
+| `[33]` | custom_field_refs  | `list[list[int]]`    | Custom field IDs available for this issue's component                                                                 |
+| `[34]` | last_activity_at   | `[secs, nanos]`      | Timestamp of the last substantive update (comment or meaningful field change); excludes automated metadata churn      |
+| `[35]` | modified_at_mirror | `[secs, nanos]`      | Last write to the issue; equals `modified_at` (`TOP[5]`) or within a few seconds of it                                |
+| `[36]` | blocking_issue_ids | `list[int]`          | IDs of issues that this issue blocks                                                                                  |
+| `[37]` | relationship_graph | `list`               | Relationship data: `[[this_issue, [[blocked_issue]]]]`                                                                |
+| `[40]` | links              | `list`               | URLs extracted from issue body: `[[[url], null, type_int]]`                                                           |
+| `[41]` | tracker_id         | `int \| null`        | Tracker ID (e.g. `157` for Chromium)                                                                                  |
+| `[43]` | body               | `list \| null`       | Issue description entry, **only in batch/detail responses** (see below)                                               |
+| `[46]` | views              | `list \| null`       | View counts as `[24h, 7d, 30d]`. Empty `[]` means 0 views                                                             |
+| `[47]` | last_modifier      | user array           | Last person to modify the issue (index may be 46 in some response shapes)                                             |
 
 > Search response issues have 47 elements (some fields are absent compared
 > to detail/batch responses). The `last_modifier` index may shift to `[46]`
@@ -820,19 +837,19 @@ order** (newest first). Each update is a 10-element array:
 When an update includes a comment, `update[2]` is a 19-element array
 (indices 0 to 18):
 
-| Index  | Field           | Type            | Notes                                                                 |
-|--------|-----------------|-----------------|-----------------------------------------------------------------------|
-| `[0]`  | body            | `str`           | Comment text                                                          |
-| `[1]`  | (unknown)       | —               | —                                                                     |
-| `[2]`  | author          | user array      | Comment author                                                        |
-| `[3]`  | modified_at     | `[secs, nanos]` | When the comment was last modified (equals `[18]` if never edited)    |
-| `[4]`  | (unknown)       | `list`          | Always `[]`                                                           |
-| `[5]`  | issue_id        | `int`           | Parent issue ID                                                       |
-| `[6]`  | sequence_number | `int`           | **0-indexed** comment number (add 1 for display)                      |
-| `[8]`  | (unknown)       | `int`           | Small enum (`1` or `2`); likely a comment type/format marker          |
-| `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                     |
-| `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches |
-| `[17]` | last_editor     | user array      | Last person to edit the comment (equals `author` if never edited)     |
+| Index  | Field           | Type            | Notes                                                                                                                                         |
+|--------|-----------------|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `[0]`  | body            | `str`           | Comment text                                                                                                                                  |
+| `[1]`  | (unknown)       | —               | —                                                                                                                                             |
+| `[2]`  | author          | user array      | Comment author                                                                                                                                |
+| `[3]`  | modified_at     | `[secs, nanos]` | When the comment was last modified (equals `[18]` if never edited)                                                                            |
+| `[4]`  | (unknown)       | `list`          | Always `[]`                                                                                                                                   |
+| `[5]`  | issue_id        | `int`           | Parent issue ID                                                                                                                               |
+| `[6]`  | sequence_number | `int`           | **0-indexed** comment number (add 1 for display)                                                                                              |
+| `[8]`  | (unknown)       | `int`           | Small enum (`1` or `2`); likely a comment type/format marker                                                                                  |
+| `[9]`  | (unknown)       | `list`          | Constant `[[1]]`; purpose unknown                                                                                                             |
+| `[14]` | comment_token   | `str`           | Opaque per-comment token: double-base64 of a 128-bit hex value, unique per comment and stable across fetches                                  |
+| `[17]` | last_editor     | user array      | Last person to edit the comment (equals `author` if never edited)                                                                             |
 | `[18]` | created_at      | `[secs, nanos]` | Original post time. Equals `[3]` unless edited, when `[3]` is later; a self-edit moves `[3]` past `[18]` while `last_editor` stays the author |
 
 ## Field Changes
