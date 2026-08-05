@@ -37,28 +37,28 @@ XSSI_PREFIX = ")]}'\n"
 
 
 def _make_issue_entry(
-        issue_id: int = 100,
-        component_id: int = 999,
-        status: int = 3,
-        priority: int = 1,
-        title: str = "Test issue",
-        reporter_email: str | None = "reporter@test.com",
-        owner_email: str | None = "owner@test.com",
-        comment_count: int = 5,
-        star_count: int = 10,
-        issue_type: int | None = 1,
-        tracker_id: int = 157,
-        created_ts: list[int] | None = None,
-        custom_fields: list[list[Any]] | None = None,
-        hotlist_ids: list[int] | None = None,
-        duplicate_ids: list[int] | None = None,
-        blocking_ids: list[int] | None = None,
-        ccs: list[list[Any]] | None = None,
-        severity: int | None = None,
-        found_in: list[str] | None = None,
-        in_prod: bool | None = None,
-        collaborators: list[list[Any]] | None = None,
-        views: list[int] | None = None,
+    issue_id: int = 100,
+    component_id: int = 999,
+    status: int = 3,
+    priority: int = 1,
+    title: str = "Test issue",
+    reporter_email: str | None = "reporter@test.com",
+    owner_email: str | None = "owner@test.com",
+    comment_count: int = 5,
+    star_count: int = 10,
+    issue_type: int | None = 1,
+    tracker_id: int = 157,
+    created_ts: list[int] | None = None,
+    custom_fields: list[list[Any]] | None = None,
+    hotlist_ids: list[int] | None = None,
+    duplicate_ids: list[int] | None = None,
+    blocking_ids: list[int] | None = None,
+    ccs: list[list[Any]] | None = None,
+    severity: int | None = None,
+    found_in: list[str] | None = None,
+    in_prod: bool | None = None,
+    collaborators: list[list[Any]] | None = None,
+    views: list[int] | None = None,
 ) -> list[Any]:
     """Build a minimal 48-element issue entry array for testing."""
     # Details array (need at least 31 elements for collaborators at index 30)
@@ -619,13 +619,13 @@ class TestParseComment:
 class TestParseUpdatesResponse:
     @staticmethod
     def _make_update_entry(
-            issue_id: int = 42,
-            author_email: str | None = "user@test.com",
-            timestamp: list[int] | None = None,
-            comment_text: str | None = None,
-            sequence: int = 0,
-            field_changes: list[list[Any]] | None = None,
-            attachments: list[list[Any]] | None = None,
+        issue_id: int = 42,
+        author_email: str | None = "user@test.com",
+        timestamp: list[int] | None = None,
+        comment_text: str | None = None,
+        sequence: int = 0,
+        field_changes: list[list[Any]] | None = None,
+        attachments: list[list[Any]] | None = None,
     ) -> list[Any]:
         """Build a minimal 10-element update entry."""
         entry: list[Any] = [None] * 10

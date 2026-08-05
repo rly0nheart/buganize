@@ -1,17 +1,24 @@
-name: Scheduled Tests
+name: Tests
 
 on:
+  pull_request:
   schedule:
     # 12:00 AM CAT (UTC+2) = 10:00 PM UTC
     - cron: "0 22 * * *"
   workflow_dispatch:
 
+# A new push to a pull request cancels the run still going for the old commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.13", "3.14"]
 
     steps:
       - name: Checkout repository
