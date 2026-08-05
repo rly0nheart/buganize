@@ -1,6 +1,6 @@
 # Google Issue Tracker (Buganizer)  API Reference
 
-> **Last updated:** 16 06 2026, 17:10:55
+> **Last updated:** 05 08 2026, 14:39:47
 
 Reverse-engineered documentation of the JSON API at
 `issuetracker.google.com` (to the best of my knowledge). Everything here was discovered by intercepting
@@ -524,6 +524,23 @@ data[0][1][0] = array of 10-element update entries
 data[0][1][1] = next page token
 data[0][1][2] = total update count
 ```
+
+Each update entry is a 10-element array. Attachment data is stored at
+`update[7]`, so the path from the response root is:
+
+```
+data[0][1][0][N][7] = array of attachment entries
+```
+
+Each attachment entry begins with:
+
+```
+[attachment_id, mime_type, size_bytes, filename, ...]
+```
+
+Additional attachment fields contain metadata such as the attachment token
+and access restriction. The attachment restriction level is currently
+observed at `attachment[9][0][0]`.
 
 ## Issue Array (48 elements)
 

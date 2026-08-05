@@ -1,5 +1,7 @@
 from .api.client import Buganize, TRACKERS
 from .api.models import (
+    Attachment,
+    AttachmentRestriction,
     CUSTOM_FIELD_IDS,
     Comment,
     CommentsResult,
@@ -18,6 +20,8 @@ from .api.models import (
 )
 
 __all__ = [
+    "Attachment",
+    "AttachmentRestriction",
     "CUSTOM_FIELD_IDS",
     "Buganize",
     "TRACKERS",
