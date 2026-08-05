@@ -401,6 +401,10 @@ class AttachmentRestriction(enum.IntEnum):
     """
     Access restriction levels for issue attachments.
 
+    ``NO_RESTRICTION`` allows users with issue-view permission to access the
+    attachment. ``RESTRICTED`` and ``RESTRICTED_PLUS`` require the respective
+    restricted-content permission.
+
     Unknown values from the API get an auto-generated UNKNOWN_N name.
     """
 
@@ -645,6 +649,14 @@ class Attachment(Exportable):
     """
     A file attached to an issue update.
 
+    Attributes:
+        issue_id: The issue this attachment belongs to.
+        id: The attachment ID.
+        mime_type: The attachment MIME type.
+        size: File size in bytes, or ``None`` after deletion.
+        filename: The attachment filename.
+        restriction: Access restriction level for the attachment.
+
     The API returns ``size=None`` after the attachment has been deleted.
     """
 
@@ -708,6 +720,7 @@ class IssueUpdate(Exportable):
         timestamp: When the update happened (UTC).
         comment: The comment attached to this update, if any.
         field_changes: List of field changes in this update.
+        attachments: Attachments associated with this update, if any.
     """
 
     issue_id: int

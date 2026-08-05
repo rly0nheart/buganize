@@ -555,28 +555,43 @@ def __parse_field_changes(raw_changes: Any) -> list[FieldChange]:
         changes.append(FieldChange(field=field_name))
     return changes
 
-def __parse_attachments(raw_attachments: Any, issue_id: int):
+def __parse_attachments(
+    raw_attachments: Any, issue_id: int
+) -> list[Attachment] | None:
+    """
+    Parse attachment entries from an issue update.
+
+    The API returns attachment metadata as nested arrays. The attachment ID,
+    MIME type, size, and filename are at indices 0 through 3. The restriction
+    level is stored at ``[9][0][0]``.
+
+    :param raw_attachments: The raw attachment array from an update entry.
+    :param issue_id: The parent issue ID.
+    :return: Parsed attachments, or ``None`` when no attachments are present.
+    """
+
     if not raw_attachments or not isinstance(raw_attachments, list):
         return None
 
-    attachments:list[Attachment] = []
+    attachments: list[Attachment] = []
 
     for raw_attachment in raw_attachments:
-
         attachment_id = __get(raw_attachment, 0)
         mime_type = __get(raw_attachment, 1)
         size = __get(raw_attachment, 2)
         filename = __get(raw_attachment, 3)
         restriction = AttachmentRestriction(__get(raw_attachment, 9, 0, 0))
 
-        attachments.append(Attachment(
-            issue_id=issue_id,
-            id=attachment_id,
-            mime_type=mime_type,
-            size=size,
-            filename=filename,
-            restriction=restriction,
-        ))
+        attachments.append(
+            Attachment(
+                issue_id=issue_id,
+                id=attachment_id,
+                mime_type=mime_type,
+                size=size,
+                filename=filename,
+                restriction=restriction,
+            )
+        )
 
     return attachments
 
