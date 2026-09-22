@@ -1,13 +1,5 @@
 # Installation
 
-## Table of Contents
-
-1. [From PyPI](#from-pypi)
-    - [Library](#library)
-    - [With the CLI](#with-the-cli)
-2. [Docker Image](#docker-image)
-3. [Nix](#nix)
-
 ## From PyPI
 
 `buganize` is available on PyPI as `buganize` or `buganise`. By default, the `pip install` command will only install the library without the cli util support. Below are instructions on how to install both the library and CLI utility:
