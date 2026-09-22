@@ -16,7 +16,6 @@ FROM python:3.14-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app/.venv .venv
 COPY --from=builder /app .
 
 ENV PATH="/app/.venv/bin:$PATH"

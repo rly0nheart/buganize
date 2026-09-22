@@ -28,7 +28,6 @@ __all__ = [
     "CUSTOM_FIELD_IDS",
     "Comment",
     "CommentsResult",
-    "Convert",
     "CustomFieldValue",
     "Exportable",
     "FieldChange",
@@ -57,71 +56,76 @@ class UnquotedValue(str):
         return str(self)
 
 
-class Convert:
+def _for_console(value: t.Any) -> t.Any:
     """
-    The conversions a model needs to show itself, or to write itself out.
+    Swap a single field value for how it reads on screen.
 
-    A value reads one way on screen and stores another, so there is a method per
-    destination, plus the one that readies a path to write to.
+    An enum shows its name rather than its numeric repr, and a datetime its
+    ISO form rather than the constructor call, both unquoted.
+
+    :param value: A field value.
+    :return: The readable form of the value.
     """
 
-    @staticmethod
-    def for_console(value: t.Any) -> t.Any:
-        """
-        Swap a single field value for how it reads on screen.
+    if isinstance(value, enum.Enum):
+        return UnquotedValue(value.name)
+    if isinstance(value, datetime):
+        return UnquotedValue(value.isoformat())
+    return value
 
-        An enum shows its name rather than its numeric repr, and a datetime its
-        ISO form rather than the constructor call, both unquoted.
 
-        :param value: A field value.
-        :return: The readable form of the value.
-        """
+def _for_file(value: t.Any) -> t.Any:
+    """
+    Reduce a field value to something JSON and CSV can both hold.
 
-        if isinstance(value, enum.Enum):
-            return UnquotedValue(value.name)
-        if isinstance(value, datetime):
-            return UnquotedValue(value.isoformat())
-        return value
+    Enums become their names, datetimes their ISO form, and nested
+    dataclasses, lists, and dicts are converted item by item.
 
-    @staticmethod
-    def for_file(value: t.Any) -> t.Any:
-        """
-        Reduce a field value to something JSON and CSV can both hold.
+    :param value: A field value.
+    :return: The plain form of the value.
+    """
 
-        Enums become their names, datetimes their ISO form, and nested
-        dataclasses, lists, and dicts are converted item by item.
+    if isinstance(value, enum.Enum):
+        return value.name
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if is_dataclass(value) and not isinstance(value, type):
+        return {f.name: _for_file(getattr(value, f.name)) for f in fields(value)}
+    if isinstance(value, dict):
+        return {key: _for_file(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_for_file(item) for item in value]
+    return value
 
-        :param value: A field value.
-        :return: The plain form of the value.
-        """
 
-        if isinstance(value, enum.Enum):
-            return value.name
-        if isinstance(value, datetime):
-            return value.isoformat()
-        if is_dataclass(value) and not isinstance(value, type):
-            return {
-                field.name: Convert.for_file(getattr(value, field.name))
-                for field in fields(value)
-            }
-        if isinstance(value, dict):
-            return {key: Convert.for_file(item) for key, item in value.items()}
-        if isinstance(value, (list, tuple)):
-            return [Convert.for_file(item) for item in value]
-        return value
+def _writable_path(path: str) -> Path:
+    """
+    Make the parent directory of an output path when it is missing.
 
-    @staticmethod
-    def to_writable_path(path: str) -> Path:
-        """
-        Make the parent directory of an output path when it is missing.
+    :param path: Output file path.
+    :return: The path, ready to write to.
+    """
 
-        :param path: Output file path.
-        :return: The path, ready to write to.
-        """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
 
-        target = Path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        return target
+
+def _write_json(path: str, data: t.Any, indent: int) -> str:
+    """
+    Write ``data`` to a JSON file and return the path written.
+
+    :param path: Output file path. Missing parent directories are made.
+    :param data: JSON-serialisable value.
+    :param indent: Spaces to indent by. ``0`` writes it on one line.
+    :return: The path written.
+    """
+
+    target = _writable_path(path)
+    target.write_text(
+        json.dumps(data, indent=indent or None, ensure_ascii=False), encoding="utf-8"
+    )
+    return str(target)
 
 
 class Exportable:
@@ -135,7 +139,7 @@ class Exportable:
 
     def __rich_repr__(self) -> t.Iterator[tuple[str, t.Any]]:
         for f in fields(self):
-            yield f.name, Convert.for_console(getattr(self, f.name))
+            yield f.name, _for_console(getattr(self, f.name))
 
     def to_dict(self) -> dict[str, t.Any]:
         """
@@ -145,7 +149,7 @@ class Exportable:
             reduced to plain values.
         """
 
-        return {f.name: Convert.for_file(getattr(self, f.name)) for f in fields(self)}
+        return {f.name: _for_file(getattr(self, f.name)) for f in fields(self)}
 
     def to_json(self, path: str, indent: int = 4) -> str:
         """
@@ -156,12 +160,7 @@ class Exportable:
         :return: The path written.
         """
 
-        target = Convert.to_writable_path(path)
-        target.write_text(
-            json.dumps(self.to_dict(), indent=indent or None, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return str(target)
+        return _write_json(path=path, data=self.to_dict(), indent=indent)
 
     def to_csv(self, path: str) -> str:
         """
@@ -221,12 +220,7 @@ class Results[T](list[T]):
         :return: The path written.
         """
 
-        target = Convert.to_writable_path(path)
-        target.write_text(
-            json.dumps(self.to_dict(), indent=indent or None, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return str(target)
+        return _write_json(path=path, data=self.to_dict(), indent=indent)
 
     def to_csv(self, path: str) -> str:
         """
@@ -239,16 +233,10 @@ class Results[T](list[T]):
         :return: The path written.
         """
 
-        target = Convert.to_writable_path(path)
+        target = _writable_path(path)
         rows = self.to_dict()
 
-        fieldnames: list[str] = []
-        seen: set[str] = set()
-        for row in rows:
-            for key in row:
-                if key not in seen:
-                    seen.add(key)
-                    fieldnames.append(key)
+        fieldnames = list(dict.fromkeys(key for row in rows for key in row))
 
         with target.open("w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -260,7 +248,32 @@ class Results[T](list[T]):
         return str(target)
 
 
-class Status(enum.IntEnum):
+class _LenientIntEnum(enum.IntEnum):
+    """
+    IntEnum that synthesises a member for values the API sends but we don't know.
+
+    The member is named ``<prefix><value>``, where subclasses set the prefix.
+    """
+
+    _unknown_prefix = enum.nonmember("UNKNOWN_")
+
+    @classmethod
+    def _missing_(cls, value):
+        """
+        Build a pseudo-member for an unknown value instead of raising.
+
+        :param value: Numeric value returned by the API.
+        :return: A new member named ``<prefix><value>``.
+        """
+
+        # noinspection PyTypeChecker
+        obj = int.__new__(cls, value)
+        obj._name_ = f"{cls._unknown_prefix}{value}"
+        obj._value_ = value
+        return obj
+
+
+class Status(_LenientIntEnum):
     """
     Issue status values used by the Google Issue Tracker.
 
@@ -280,22 +293,6 @@ class Status(enum.IntEnum):
     INFEASIBLE = 9
     DUPLICATE = 10
 
-    @classmethod
-    def _missing_(cls, value):
-        """
-        Synthesize a pseudo-member for unknown status values from the
-        API instead of raising. The result has ``name == "UNKNOWN_<value>"``.
-
-        :param value: Numeric status value returned by the API.
-        :return: A new :class:`Status` instance.
-        """
-
-        # noinspection PyTypeChecker
-        obj = int.__new__(cls, value)
-        obj._name_ = f"UNKNOWN_{value}"
-        obj._value_ = value
-        return obj
-
     @property
     def is_open(self) -> bool:
         """
@@ -305,7 +302,7 @@ class Status(enum.IntEnum):
         return self in (Status.NEW, Status.ASSIGNED, Status.ACCEPTED)
 
 
-class Priority(enum.IntEnum):
+class Priority(_LenientIntEnum):
     """
     Issue priority levels. P0 is the most urgent, P4 is the lowest.
 
@@ -318,24 +315,10 @@ class Priority(enum.IntEnum):
     P3 = 3
     P4 = 4
 
-    @classmethod
-    def _missing_(cls, value):
-        """
-        Synthesize a pseudo-member for unknown priority values from the
-        API. Returns a member named ``"P<value>"``.
-
-        :param value: Numeric priority value returned by the API.
-        :return: A new :class:`Priority` instance.
-        """
-
-        # noinspection PyTypeChecker
-        obj = int.__new__(cls, value)
-        obj._name_ = f"P{value}"
-        obj._value_ = value
-        return obj
+    _unknown_prefix = enum.nonmember("P")
 
 
-class Severity(enum.IntEnum):
+class Severity(_LenientIntEnum):
     """
     Issue severity levels. S0 is the most severe, S4 is the lowest.
 
@@ -349,24 +332,10 @@ class Severity(enum.IntEnum):
     S3 = 3
     S4 = 4
 
-    @classmethod
-    def _missing_(cls, value):
-        """
-        Synthesize a pseudo-member for unknown severity values from the
-        API. Returns a member named ``"S<value>"``.
-
-        :param value: Numeric severity value returned by the API.
-        :return: A new :class:`Severity` instance.
-        """
-
-        # noinspection PyTypeChecker
-        obj = int.__new__(cls, value)
-        obj._name_ = f"S{value}"
-        obj._value_ = value
-        return obj
+    _unknown_prefix = enum.nonmember("S")
 
 
-class IssueType(enum.IntEnum):
+class IssueType(_LenientIntEnum):
     """
     Issue type categories.
 
@@ -380,24 +349,10 @@ class IssueType(enum.IntEnum):
     PROCESS = 5
     VULNERABILITY = 6
 
-    @classmethod
-    def _missing_(cls, value):
-        """
-        Synthesize a pseudo-member for unknown issue-type values from
-        the API. Returns a member named ``"TYPE_<value>"``.
-
-        :param value: Numeric issue-type value returned by the API.
-        :return: A new :class:`IssueType` instance.
-        """
-
-        # noinspection PyTypeChecker
-        obj = int.__new__(cls, value)
-        obj._name_ = f"TYPE_{value}"
-        obj._value_ = value
-        return obj
+    _unknown_prefix = enum.nonmember("TYPE_")
 
 
-class AttachmentRestriction(enum.IntEnum):
+class AttachmentRestriction(_LenientIntEnum):
     """
     Access restriction levels for issue attachments.
 
@@ -411,21 +366,6 @@ class AttachmentRestriction(enum.IntEnum):
     NO_RESTRICTION = 1
     RESTRICTED = 2
     RESTRICTED_PLUS = 3
-
-    @classmethod
-    def _missing_(cls, value):
-        """
-        Synthesize a pseudo-member for an unknown attachment restriction.
-
-        :param value: Numeric restriction level returned by the API.
-        :return: A new :class:`AttachmentRestriction` instance.
-        """
-
-        # noinspection PyTypeChecker
-        obj = int.__new__(cls, value)
-        obj._name_ = f"UNKNOWN_{value}"
-        obj._value_ = value
-        return obj
 
 
 # Maps numeric custom field IDs to human-readable names.

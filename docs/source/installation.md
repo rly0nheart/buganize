@@ -1,6 +1,6 @@
-## Installation
+# Installation
 
-### Table of Contents
+## Table of Contents
 
 1. [From PyPI](#from-pypi)
     - [Library](#library)

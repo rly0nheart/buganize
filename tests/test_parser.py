@@ -231,6 +231,31 @@ class TestParseIntList:
 
 
 class TestParseCustomFieldValues:
+    def test_value_precedence_and_empty_label_fallback(self) -> None:
+        """Use numeric, label, enum, then display values in that order."""
+        for numeric, labels, enums, expected in [
+            (0, [["label"]], [["enum"]], 0),
+            (None, [["label", 1], "other"], [["enum"]], ["label", "other"]),
+            (None, [[None, 1]], [["enum"]], ["enum"]),
+            (None, "invalid", [["enum"]], ["enum"]),
+            (None, [], [[None, 1]], "display"),
+        ]:
+            entry = [
+                9999999,
+                None,
+                None,
+                None,
+                numeric,
+                labels,
+                None,
+                enums,
+                None,
+                "display",
+            ]
+            assert parse_custom_field_values(raw_field_entries=[entry]) == {
+                "field_9999999": expected
+            }
+
     def test_numeric_field(self) -> None:
         # field_id 1410892 = "cwe_id", numeric value at index 4
         entry = [1410892, None, None, None, 79.0, None, None, None, None, None]
@@ -425,6 +450,18 @@ class TestParseIssueFromEntry:
         assert issue.views_24h == 0
         assert issue.views_7d == 0
         assert issue.views_30d == 0
+
+    def test_views_preserve_positions_and_default_invalid_values(self) -> None:
+        """Keep valid counts in place and default missing or invalid counts to zero."""
+        for views, expected in [
+            ([5, "invalid", 100], (5, 0, 100)),
+            ([5], (5, 0, 0)),
+            ({0: 5, 1: 20, 2: 100}, (0, 0, 0)),
+        ]:
+            entry = _make_issue_entry()
+            entry[46] = views
+            issue = parse_issue_from_entry(raw_entry=entry)
+            assert (issue.views_24h, issue.views_7d, issue.views_30d) == expected
 
     def test_url_property(self) -> None:
         entry = _make_issue_entry(issue_id=12345)
