@@ -1,12 +1,4 @@
-## Installation
-
-### Table of Contents
-
-1. [From PyPI](#from-pypi)
-    - [Library](#library)
-    - [With the CLI](#with-the-cli)
-2. [Docker Image](#docker-image)
-3. [Nix](#nix)
+# Installation
 
 ## From PyPI
 

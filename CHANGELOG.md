@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-22
+
+### Added
+
+- Documentation site on Read the Docs
+- Tests for custom field parsing, view counts, and the update checker.
+
+### Changed
+
+- The CLI installs with the library. The _cli_ extra is gone and _rich_ is a
+  core dependency.
+- _FINDINGS.md_ is now _AUDIT.md_, rewritten with a tested/untested status for
+  each recorded endpoint.
+
 ## [2.1.1] - 2026-08-05
 
 ### Added

@@ -1,100 +1,20 @@
 from __future__ import annotations
 
-import os
-import pickle
+import json
 import re
 import time
 import typing as t
-from datetime import UTC
-from datetime import datetime
-from functools import wraps
+from importlib.metadata import version
+from pathlib import Path
 from tempfile import gettempdir
 
 import httpx
 
+__pkg__ = "buganize"
+__version__ = version(__pkg__)
 
-def cache_results(function: t.Callable) -> t.Callable:
-    """
-    Return a decorated function that caches the results.
-
-    Uses both an in-memory cache and a persistent pickle-based cache
-    in the system temp directory. Cache entries expire after 1 hour.
-
-    :param function: The async function to wrap with caching.
-    :return: An async wrapper that returns cached results when available.
-    """
-
-    def save_to_permacache():
-        """
-        Save the in-memory cache data to the permacache.
-
-        There is a race condition here between two processes updating at the
-        same time. It's perfectly acceptable to lose and/or corrupt the
-        permacache information as each process's in-memory cache will remain
-        in-tact.
-        """
-
-        update_from_permacache()
-        try:
-            with open(filename, "wb") as fp:
-                pickle.dump(cache, fp, pickle.HIGHEST_PROTOCOL)
-        except IOError:
-            pass  # Ignore permacache saving exceptions
-
-    def update_from_permacache():
-        """
-        Attempt to update newer items from the permacache.
-        """
-
-        try:
-            with open(filename, "rb") as fp:
-                permacache = pickle.load(fp)
-        except (
-            FileNotFoundError,
-            FileExistsError,
-            IOError,
-        ):  # TODO: Handle specific exceptions
-            return  # It's okay if it cannot load
-        for key, value in permacache.items():
-            if key not in cache or value[0] > cache[key][0]:
-                cache[key] = value
-
-    cache = {}
-    cache_expire_time = 3600
-    try:
-        filename = os.path.join(gettempdir(), "update_checker_cache.pkl")
-        update_from_permacache()
-    except NotImplementedError:
-        filename = None
-
-    @wraps(function)
-    async def wrapped(
-        obj: UpdateChecker,
-        package_name: str,
-        package_version: str,
-    ) -> UpdateResult | None:
-        """
-        Return cached results if available.
-
-        :param obj: The instance the decorated method is bound to.
-        :param package_name: Name of the package to check.
-        :param package_version: Currently running version string.
-        :return: The (possibly cached) result of the wrapped function.
-        """
-
-        now = time.time()
-        key = (package_name, package_version)
-        if not obj._bypass_cache and key in cache:  # Check the in-memory cache
-            cache_time, retval = cache[key]
-            if now - cache_time < cache_expire_time:
-                return retval
-        retval = await function(obj, package_name, package_version)
-        cache[key] = now, retval
-        if filename:
-            save_to_permacache()
-        return retval
-
-    return wrapped
+CACHE_FILE = Path(gettempdir()) / "buganize_update_check.json"
+CACHE_TTL = 3600
 
 
 async def query_pypi(package: str, include_prereleases: bool) -> dict:
@@ -135,6 +55,34 @@ async def query_pypi(package: str, include_prereleases: bool) -> dict:
     return {"success": True, "data": {"upload_time": upload_time, "version": version}}
 
 
+async def cached_query_pypi(package: str, include_prereleases: bool) -> dict:
+    """
+    Return the PyPI lookup result, reusing a cached one under an hour old.
+
+    :param package: The package name to look up on PyPI.
+    :param include_prereleases: Whether to consider pre-release versions.
+    :return: The same dict as :func:`query_pypi`.
+    """
+
+    key = {"package": package, "include_prereleases": include_prereleases}
+    try:
+        cached = json.loads(CACHE_FILE.read_text())
+        if cached["key"] == key and time.time() - cached["time"] < CACHE_TTL:
+            return cached["data"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass  # missing or unreadable cache, query PyPI
+
+    data = await query_pypi(package=package, include_prereleases=include_prereleases)
+    if data.get("success"):
+        try:
+            CACHE_FILE.write_text(
+                json.dumps({"key": key, "time": time.time(), "data": data})
+            )
+        except OSError:
+            pass  # cache is best effort
+    return data
+
+
 def standard_release(version: str) -> bool:
     """
     Check whether a version string represents a standard (non-pre-release) release.
@@ -146,152 +94,37 @@ def standard_release(version: str) -> bool:
     return version.replace(".", "").isdigit()
 
 
-# This class must be defined before UpdateChecker in order to unpickle objects
-# of this type
-class UpdateResult:
-    """
-    Contains the information for a package that has an update.
-    """
-
-    def __init__(
-        self,
-        package: str,
-        running: str,
-        available: str,
-        release_date: str | None,
-    ):
-        """
-        Initialise an UpdateResult instance.
-
-        :param package: The package name.
-        :param running: The currently running version string.
-        :param available: The latest available version string.
-        :param release_date: ISO 8601 upload timestamp from PyPI, or ``None``.
-        """
-
-        self.available_version = available
-        self.package_name = package
-        self.running_version = running
-        if release_date:
-            self.release_date = datetime.strptime(
-                release_date, "%Y-%m-%dT%H:%M:%S"
-            ).replace(tzinfo=UTC)
-        else:
-            self.release_date = None
-
-    def __str__(self) -> str:
-        """
-        Return a printable UpdateResult string.
-
-        :return: A human-readable message about the available update.
-        """
-
-        retval = f"Version {self.running_version} of {self.package_name} is outdated. Version {self.available_version} "
-        if self.release_date:
-            retval += f"was released {pretty_date(self.release_date)}."
-        else:
-            retval += "is available."
-        return retval
-
-
-class UpdateChecker:
-    """
-    A class to check for package updates on PyPI.
-    """
-
-    def __init__(self, *, bypass_cache: bool = False):
-        """
-        Initialise an UpdateChecker instance.
-
-        :param bypass_cache: If ``True``, skip the in-memory cache and
-            always query PyPI.
-        """
-
-        self._bypass_cache = bypass_cache
-
-    @cache_results
-    async def check(
-        self, package_name: str, package_version: str
-    ) -> UpdateResult | None:
-        """
-        Check whether a newer version of the package is available.
-
-        :param package_name: The package name to check.
-        :param package_version: The currently running version string.
-        :return: An :class:`UpdateResult` if a newer version exists,
-            or ``None`` if already up to date.
-        """
-
-        data = await query_pypi(
-            package=package_name,
-            include_prereleases=not standard_release(package_version),
-        )
-
-        if not data.get("success") or (
-            parse_version(package_version) >= parse_version(data["data"]["version"])
-        ):
-            return None
-
-        return UpdateResult(
-            package=package_name,
-            running=package_version,
-            available=data["data"]["version"],
-            release_date=data["data"]["upload_time"],
-        )
-
-
-def pretty_date(the_datetime: datetime) -> str:
-    """
-    Attempt to return a human-readable time delta string.
-
-    :param the_datetime: A timezone-aware :class:`~datetime.datetime` to
-        compare against the current UTC time.
-    :return: A relative time string such as ``"3 days ago"`` or
-        ``"just now"``.
-    """
-
-    # Source modified from
-    # http://stackoverflow.com/a/5164027/176978
-    diff = datetime.now(UTC) - the_datetime
-    if diff.days > 7 or diff.days < 0:
-        return the_datetime.strftime("%A %B %d, %Y")
-    elif diff.days == 1:
-        return "1 day ago"
-    elif diff.days > 1:
-        return f"{diff.days} days ago"
-    elif diff.seconds <= 1:
-        return "just now"
-    elif diff.seconds < 60:
-        return f"{diff.seconds} seconds ago"
-    elif diff.seconds < 120:
-        return "1 minute ago"
-    elif diff.seconds < 3600:
-        return f"{int(round(diff.seconds / 60))} minutes ago"
-    elif diff.seconds < 7200:
-        return "1 hour ago"
-    else:
-        return f"{int(round(diff.seconds / 3600))} hours ago"
-
-
 async def update_check(
-    package_name: str,
-    package_version: str,
-    bypass_cache: bool = False,
-):
+    package_name: str = __pkg__, package_version: str = __version__
+) -> None:
+    """Print a notice when PyPI has a newer version.
+
+    :param package_name: Package to check.
+    :param package_version: Running version.
     """
-    Convenience function that outputs to stderr if an update is available.
+    data = await cached_query_pypi(
+        package=package_name,
+        include_prereleases=not standard_release(version=package_version),
+    )
+    if not data.get("success") or (
+        parse_version(string=package_version)
+        >= parse_version(string=data["data"]["version"])
+    ):
+        return
 
-    :param package_name: The package name to check.
-    :param package_version: The currently running version string.
-    :param bypass_cache: If ``True``, skip the cache and query PyPI directly.
-    """
+    available = data["data"]["version"]
+    message = (
+        f"Version {package_version} of {package_name} is outdated. "
+        f"Version {available} "
+    )
+    release_date = data["data"]["upload_time"]
+    message += (
+        f"was released on {release_date[:10]}." if release_date else "is available."
+    )
 
-    checker = UpdateChecker(bypass_cache=bypass_cache)
-    result = await checker.check(package_name, package_version=package_version)
-    if result:
-        from .console import console
+    from .console import console
 
-        console.log(f"[bold blue]⬆[/bold blue] {result}")
+    console.log(f"[bold blue]⬆[/bold blue] {message}")
 
 
 # The following section of code is taken from setuptools pkg_resources.py (PSF

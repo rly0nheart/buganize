@@ -6,11 +6,10 @@ import typing as t
 from asyncio import Task
 from datetime import datetime
 
-from . import __pkg__, __version__
 from .console import console
 from .output import export, pretty_print
 from .symbols import FAIL, OK
-from .update_checker import update_check
+from .update_checker import __pkg__, __version__, update_check
 from ..api.client import Buganize, TRACKERS
 from ..api.models import Results
 
@@ -146,18 +145,13 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     result = await client.search(query=query, page_size=per_page)
     issues: Results[Issue] = Results(result.issues)
 
+    while limit is not None and result.has_more and len(issues) < limit:
+        status.update(
+            f"[dim]Collected [cyan]{len(issues)}[/] of [cyan]{limit}[/] issues…[/dim]"
+        )
+        result = await client.next_page(result)
+        issues.extend(result.issues)
     if limit is not None:
-        if result.has_more:
-            while len(issues) < limit:
-                status.update(
-                    f"[dim]Collected [cyan]{len(issues)}[/] of [cyan]{limit}[/] issues…[/dim]"
-                )
-
-                next_result = await client.next_page(result)
-                if next_result is None:
-                    break
-                result = next_result
-                issues.extend(result.issues)
         issues = Results(issues[:limit])
 
     console.log(
@@ -267,13 +261,7 @@ async def dispatch_client(args: argparse.Namespace, status: Status):
     :param status: Rich status spinner for progress updates.
     """
 
-    update_checker_task: Task = asyncio.create_task(
-        update_check(
-            package_name=__pkg__,
-            package_version=__version__,
-            bypass_cache=True,
-        )
-    )
+    update_checker_task: Task = asyncio.create_task(update_check())
 
     async with Buganize(trackers=args.tracker, timeout=args.timeout) as client:
         await args.func(client=client, args=args, status=status)

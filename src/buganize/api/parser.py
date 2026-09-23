@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,6 +21,8 @@ from ..api.models import (
     Status,
 )
 
+_RESPONSE_PREFIX = re.compile(r"^\)\]\}'(\\n|\r?\n)")
+
 
 def __strip_response_prefix(raw_text: str) -> str:
     """
@@ -29,10 +32,7 @@ def __strip_response_prefix(raw_text: str) -> str:
     :return: The response body with the prefix stripped, ready for json.loads().
     """
 
-    for prefix in (")]}'\n", ")]}'\\n", ")]}'\r\n"):
-        if raw_text.startswith(prefix):
-            return raw_text[len(prefix) :]
-    return raw_text
+    return _RESPONSE_PREFIX.sub("", raw_text, count=1)
 
 
 def __parse_json_response(raw_text: str) -> Any:
@@ -116,12 +116,7 @@ def __parse_ccs(raw_ccs: Any) -> list[str]:
 
     if not raw_ccs or not isinstance(raw_ccs, list):
         return []
-    emails = []
-    for entry in raw_ccs:
-        email = __parse_email(entry)
-        if email:
-            emails.append(email)
-    return emails
+    return [email for entry in raw_ccs if (email := __parse_email(entry))]
 
 
 def __parse_int_list(raw_list: Any) -> list[int]:
@@ -174,35 +169,22 @@ def __parse_custom_field_values(raw_field_entries: Any) -> dict[str, Any]:
             parsed_fields[field_name] = numeric_value
             continue
 
-        # Multi-value labels at index 5: [[val1, val2, ...]]
-        label_values = __get(entry, 5)
-        if label_values and isinstance(label_values, list):
-            flat_labels = []
-            for group in label_values:
-                if isinstance(group, list):
-                    flat_labels.extend(s for s in group if isinstance(s, str))
-                elif isinstance(group, str):
-                    flat_labels.append(group)
-            if flat_labels:
-                parsed_fields[field_name] = flat_labels
+        for index in (5, 7):
+            values = __get(entry, index)
+            if not isinstance(values, list):
                 continue
-
-        # Enum-like values at index 7: [[val1, val2, ...]]
-        enum_values = __get(entry, 7)
-        if enum_values and isinstance(enum_values, list):
-            flat_enums = []
-            for group in enum_values:
+            flat_values = []
+            for group in values:
                 if isinstance(group, list):
-                    flat_enums.extend(s for s in group if isinstance(s, str))
+                    flat_values.extend(s for s in group if isinstance(s, str))
                 elif isinstance(group, str):
-                    flat_enums.append(group)
-            if flat_enums:
-                parsed_fields[field_name] = flat_enums
-                continue
-
-        # Fall back to the display string.
-        if display_string and isinstance(display_string, str):
-            parsed_fields[field_name] = display_string
+                    flat_values.append(group)
+            if flat_values:
+                parsed_fields[field_name] = flat_values
+                break
+        else:
+            if display_string and isinstance(display_string, str):
+                parsed_fields[field_name] = display_string
 
     return parsed_fields
 
@@ -351,26 +333,15 @@ def __parse_issue_from_entry(raw_entry: list) -> Issue:
     in_prod = True if in_prod_raw is True else None
 
     # Parse view counts [24h, 7d, 30d]
-    views_24h = (
-        views_array[0]
-        if isinstance(views_array, list)
-        and len(views_array) > 0
-        and isinstance(views_array[0], int)
-        else 0
-    )
-    views_7d = (
-        views_array[1]
-        if isinstance(views_array, list)
-        and len(views_array) > 1
-        and isinstance(views_array[1], int)
-        else 0
-    )
-    views_30d = (
-        views_array[2]
-        if isinstance(views_array, list)
-        and len(views_array) > 2
-        and isinstance(views_array[2], int)
-        else 0
+    views_24h, views_7d, views_30d = (
+        (
+            views_array[index]
+            if isinstance(views_array, list)
+            and len(views_array) > index
+            and isinstance(views_array[index], int)
+            else 0
+        )
+        for index in range(3)
     )
 
     return Issue(
@@ -493,13 +464,14 @@ def __parse_issue_detail_response(raw_text: str) -> Issue:
     response_wrapper = __get(data, 0, default=[])
     payload = __get(response_wrapper, 1, default=[])
 
-    issue_entry = None
-    if isinstance(payload, list) and len(payload) > 0:
-        for i in range(len(payload) - 1, -1, -1):
-            candidate = __get(payload, i)
-            if isinstance(candidate, list) and isinstance(__get(candidate, 1), int):
-                issue_entry = candidate
-                break
+    issue_entry = next(
+        (
+            candidate
+            for candidate in reversed(payload if isinstance(payload, list) else [])
+            if isinstance(candidate, list) and isinstance(__get(candidate, 1), int)
+        ),
+        None,
+    )
 
     if issue_entry is None:
         raise ValueError("Could not locate issue entry in getIssue response")

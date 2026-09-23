@@ -1,40 +1,21 @@
 import sys
-from importlib.metadata import version
+import asyncio
+import logging
+from datetime import datetime
+from rich.logging import RichHandler
 
-__pkg__ = "buganize"
-__version__ = version(__pkg__)
+from .commands import dispatch_client, parse_args
+from .console import console
+from .output import pretty_print
+from .symbols import INFO, WARN
+from .update_checker import __version__
+from ..api.client import TRACKERS
 
 
 def start():
     """
-    CLI entry point. Requires the ``cli`` extra (``pip install buganize[cli]``)
-    which provides `rich <https://rich.readthedocs.io>`_. Exits with a
-    helpful message if the dependency is missing.
-
-    The ``trackers`` subcommand is handled synchronously and returns early.
-    All other subcommands run through the async :func:`dispatch_client` path.
+    CLI entry point.
     """
-
-    try:
-        import rich  # the cli's output, styling, and live statuses depend on rich: https://github.com/Textualize/rich
-    except ImportError:
-        print(
-            f"{__pkg__} {__version__}: If you wish to run {__pkg__} as a CLI tool, "
-            f"you will need to install the 'cli' extra by running 'pip install buganize[cli]'"
-        )
-        sys.exit(1)
-
-    import asyncio
-    import logging
-    from datetime import datetime
-
-    from rich.logging import RichHandler
-
-    from .commands import dispatch_client, parse_args
-    from .console import console
-    from .output import pretty_print
-    from .symbols import INFO, WARN
-    from ..api.client import TRACKERS
 
     args = parse_args()
 
@@ -65,7 +46,6 @@ def start():
     except KeyboardInterrupt:
         console.log(f"{WARN} User interrupted ([bold yellow]CTRL+C[/bold yellow])")
         sys.exit(0)
-
     finally:
         elapsed = (datetime.now() - start_time).total_seconds()
         console.log(f"{INFO} Finished in {elapsed:.1f} seconds")
