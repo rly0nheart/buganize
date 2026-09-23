@@ -1,6 +1,6 @@
 [project]
 name = "buganize"
-version = "2.2.2"
+version = "2.3.0"
 description = "Python client for the Google Issue Tracking system (Buganizer)"
 readme = "README.md"
 license = "MIT"
@@ -63,3 +63,6 @@ asyncio_mode = "auto"
 [build-system]
 requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

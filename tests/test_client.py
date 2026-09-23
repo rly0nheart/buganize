@@ -1,3 +1,4 @@
+import httpx
 import pytest
 import pytest_asyncio
 
@@ -104,7 +105,7 @@ class TestGetIssue:
         for candidate in search.issues:
             try:
                 return await client.issue(candidate.id)
-            except Exception:
+            except (ValueError, httpx.HTTPStatusError):
                 continue
         pytest.skip("All candidate issues are internal (empty response)")
 
@@ -177,7 +178,7 @@ class TestGetIssue:
         for candidate in search.issues:
             try:
                 issue = await client.issue(candidate.id)
-            except Exception:
+            except (ValueError, httpx.HTTPStatusError):
                 continue
             if issue.body is not None:
                 assert isinstance(issue.body, str)

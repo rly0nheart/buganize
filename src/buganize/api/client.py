@@ -17,7 +17,7 @@ if t.TYPE_CHECKING:
 
     from .models import CommentsResult, Issue, IssueUpdatesResult, Results, SearchResult
 
-__all__ = ["Buganize", "TRACKERS"]
+__all__ = ["TRACKERS", "Buganize"]
 
 TRACKERS: list[dict[str, str | int]] = [
     {
@@ -170,10 +170,6 @@ class Buganize:
         """
         Ping the issue tracker backend and return its raw response.
 
-        Hits the ``/action/yes`` endpoint, which returns the literal
-        string ``yes`` (text/plain, no anti-XSSI prefix) when the backend
-        is reachable. Works on all tracker domains.
-
         :return: The raw response text, which is ``"yes"`` when the backend
             is reachable and healthy. Returns ``"no"`` when the backend is
             unreachable or responds with a non-200 status.
@@ -249,8 +245,6 @@ class Buganize:
     async def issue(self, issue_id: int) -> Issue:
         """
         Fetch a single issue by its numeric ID.
-
-        Returns all fields including the issue body/description.
 
         :param issue_id: The issue ID (e.g. 40060244).
         :return: The fully populated issue.

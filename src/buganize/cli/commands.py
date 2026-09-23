@@ -6,12 +6,12 @@ import typing as t
 from asyncio import Task
 from datetime import datetime
 
+from ..api.client import TRACKERS, Buganize
+from ..api.models import Results
 from .console import console
-from .output import export, pretty_print
+from .output import export, pretty_print, print_table
 from .symbols import FAIL, OK
 from .update_checker import __pkg__, __version__, update_check
-from ..api.client import Buganize, TRACKERS
-from ..api.models import Results
 
 if t.TYPE_CHECKING:
     from rich.status import Status
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog=__pkg__,
         description="Python client for the Google Issue Tracking system (Buganizer)",
-        epilog=f"© {datetime.now().year} Ritchie Mwewa",
+        epilog=f"© {datetime.now().astimezone().year} Ritchie Mwewa",
     )
     parser.add_argument(
         "-t",
@@ -160,7 +160,7 @@ async def cmd_search(client: Buganize, args: argparse.Namespace, status: Status)
     # Rich's Status redirects sys.stdout, which makes the pager (and the
     # TTY check) see a non-tty. Stop it first so paging can take over.
     status.stop()
-    pretty_print(output=issues)
+    print_table(issues=issues)
     if args.export:
         export(output=issues, formats=args.export)
 
@@ -202,7 +202,7 @@ async def cmd_issues(client: Buganize, args: argparse.Namespace, status: Status)
     issues = await client.issues(issue_ids=issue_ids)
 
     status.stop()  # restore stdout so the pager works (Status redirects it)
-    pretty_print(output=issues)
+    print_table(issues=issues)
     if args.export:
         export(output=issues, formats=args.export)
 

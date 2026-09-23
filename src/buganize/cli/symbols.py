@@ -5,7 +5,7 @@ Centralises the decorative prefixes used across the CLI so they stay
 visually consistent and are defined in exactly one place.
 """
 
-__all__ = ["OK", "FAIL", "WARN", "INFO"]
+__all__ = ["FAIL", "INFO", "OK", "WARN"]
 
 #: Success marker (green ✔).
 OK = "[bold green]✔[/bold green]"

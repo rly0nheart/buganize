@@ -4,7 +4,7 @@
    :height: 150
    :align: center
 
-.. centered:: **Python client for the Google Issue Tracking system (Buganizer)**
+.. centered:: Python client for the Google Issue Tracking system (Buganizer)
 
 Quick Start
 -----------
