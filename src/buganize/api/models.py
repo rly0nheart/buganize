@@ -23,9 +23,9 @@ from datetime import datetime
 from pathlib import Path
 
 __all__ = [
+    "CUSTOM_FIELD_IDS",
     "Attachment",
     "AttachmentRestriction",
-    "CUSTOM_FIELD_IDS",
     "Comment",
     "CommentsResult",
     "CustomFieldValue",

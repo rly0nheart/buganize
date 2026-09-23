@@ -1,5 +1,5 @@
 import json
-from datetime import timezone
+from datetime import UTC
 from typing import Any
 
 import pytest
@@ -12,23 +12,22 @@ from buganize.api.models import (
     Severity,
     Status,
 )
-
 from buganize.api.parser import (
     # The parser's helpers are name-mangled inside a class body, so they come in
     # under plain names the test classes below can call.
     __get as get,
+    __parse_batch_response as parse_batch_response,
     __parse_ccs as parse_ccs,
     __parse_comment as parse_comment,
     __parse_custom_field_values as parse_custom_field_values,
     __parse_email as parse_email,
     __parse_field_changes as parse_field_changes,
     __parse_int_list as parse_int_list,
-    __parse_timestamp as parse_timestamp,
-    __parse_batch_response as parse_batch_response,
     __parse_issue_detail_response as parse_issue_detail_response,
     __parse_issue_from_entry as parse_issue_from_entry,
     __parse_json_response as parse_json_response,
     __parse_search_response as parse_search_response,
+    __parse_timestamp as parse_timestamp,
     __parse_updates_response as parse_updates_response,
     __strip_response_prefix as strip_response_prefix,
 )
@@ -154,7 +153,7 @@ class TestParseTimestamp:
     def test_seconds_only(self) -> None:
         dt = parse_timestamp([1700000000])
         assert dt is not None
-        assert dt.tzinfo == timezone.utc
+        assert dt.tzinfo == UTC
         assert dt.year == 2023
 
     def test_seconds_and_nanos(self) -> None:

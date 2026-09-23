@@ -1,9 +1,7 @@
-import os
-import sys
-from datetime import date
+from datetime import datetime
 
 project = "Buganize"
-copyright = f"{date.today().year}, Ritchie Mwewa"
+copyright = f"{datetime.now().astimezone().year}, Ritchie Mwewa"
 
 extensions = [
     "myst_parser",

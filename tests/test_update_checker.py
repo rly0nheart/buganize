@@ -38,8 +38,10 @@ async def test_update_check_caches_pypi_lookup_for_an_hour(tmp_path):
     assert (
         messages
         == [
-            "[bold blue]⬆[/bold blue] Version 1.0.0 of audit-test-package is outdated. "
-            "Version 2.0.0 was released on 2020-01-01."
+            (
+                "[bold blue]⬆[/bold blue] Version 1.0.0 of audit-test-package is outdated. "
+                "Version 2.0.0 was released on 2020-01-01."
+            )
         ]
         * 3
     )

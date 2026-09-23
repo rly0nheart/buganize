@@ -1,12 +1,12 @@
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..api.models import (
+    CUSTOM_FIELD_IDS,
     Attachment,
     AttachmentRestriction,
-    CUSTOM_FIELD_IDS,
     Comment,
     CommentsResult,
     FieldChange,
@@ -82,7 +82,7 @@ def __parse_timestamp(raw_timestamp: Any) -> datetime | None:
     try:
         seconds = raw_timestamp[0]
         nanos = raw_timestamp[1] if len(raw_timestamp) > 1 else 0
-        return datetime.fromtimestamp(seconds + nanos / 1e9, tz=timezone.utc)
+        return datetime.fromtimestamp(seconds + nanos / 1e9, tz=UTC)
     except (TypeError, ValueError, OSError):
         return None
 

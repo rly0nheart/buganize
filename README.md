@@ -5,7 +5,7 @@
 <strong>Python client for the Google Issue Tracking system (Buganizer)</strong>
 </p>
 
-## Quick start
+## Quick Start
 
 ```python
 from buganize import Buganize
